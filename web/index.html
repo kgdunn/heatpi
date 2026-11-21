@@ -21,7 +21,8 @@
   #legend .dashed { border-top: 2px dashed #5b5a56; }
   #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgba(91,90,86,0.5);
                  vertical-align: middle; margin: 0 6px 0 5px; }
-  #legend .group { color: #6b6a66; margin-left: 8px; }
+  #legend .group { display: inline-flex; align-items: center; gap: 0 8px; margin-left: 8px; }  /* wraps as one */
+  #legend .group > span { color: #6b6a66; }
   #version { font-size: 11px; line-height: 1.3; color: #6b6a66; text-align: right; }
   @media (max-width: 760px) {      /* phone: the code version top right, the time range on its own line */
     header { column-gap: 8px; }
@@ -53,7 +54,7 @@
 // Colour follows the room, never its position (checked for colour-blind separation).
 const ROOM_COLOR = { "Badkamer": "#2a78d6", "Bedroom": "#eb6834", "Logeer": "#1f9e89", "Living Room": "#b0389b" };
 const UPSTAIRS = new Set(["Living Room"]);
-const NEUTRAL = "#5b5a56", LIGHT = "#a3a29d";
+const NEUTRAL = "#5b5a56", LIGHT = "#a3a29d", PRIOR = "#f0a6c6";   // PRIOR: light pink, a day earlier
 const HOUR = 3600e3;
 let data = null;                                   // last fetch, reused when the screen rotates
 let view = 0;                                      // bumped by Refresh or a new range: resets any zoom
@@ -176,6 +177,20 @@ function dailyEnergy(e) {
   return { x, y, totals };
 }
 
+// The 24 h view fetches 48 h of energy and splits it: the last 24 h as usual, and the 24 h before,
+// moved one calendar day later (same clock time; right across a summer/winter time change) to lie
+// under today's line in pink. Both reset at midnight, so at any moment you compare "kWh so far"
+// with the same moment a day earlier.
+function splitPrior(e, cutoffMs) {
+  const cutoff = toLocal(cutoffMs), now = { time: [], kwh: [] }, prior = { time: [], kwh: [] };
+  e.time.forEach((t, i) => {
+    if (t >= cutoff) { now.time.push(t); now.kwh.push(e.kwh[i]); return; }
+    const d = new Date(t.replace(" ", "T")); d.setDate(d.getDate() + 1);
+    prior.time.push(toLocal(d.getTime())); prior.kwh.push(e.kwh[i]);
+  });
+  return { now, prior };
+}
+
 // "Code update / 21 Nov 12:30 UTC": when the code the Pi runs was committed (hover: hash and message).
 function showVersion(v) {
   if (!v.time) return;
@@ -187,17 +202,21 @@ function showVersion(v) {
 
 function render() {
   if (!data) return;
-  const { hours, zones, evohome, outdoor, knmi, energy, tech, noise } = data;
+  const { hours, zones, evohome, outdoor, knmi, energy, prior, tech, noise } = data;
   const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
-  const daily = dailyEnergy(energy);
+  const daily = dailyEnergy(energy), before = dailyEnergy(prior);
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
   // Rooms in panel order: downstairs (left panel) first, then upstairs (right panel), A-Z within each.
   const rooms = [...zones.keys()].sort((a, b) => UPSTAIRS.has(a) - UPSTAIRS.has(b) || a.localeCompare(b));
   const legend = rooms.map(n => legendKey(n, n, `<i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>`));
-  legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`),
-              `<span class="group">Outdoor:</span>`, legendKey("street", "street", `<b class="dot"></b>`));
-  if (knmi.time.length) legend.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
+  // A group label stays on the same line as its keys.
+  const group = (label, keys) => `<span class="group"><span>${label}</span>${keys.join("")}</span>`;
+  const outdoorKeys = [legendKey("street", "street", `<b class="dot"></b>`)];
+  if (knmi.time.length) outdoorKeys.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
+  legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`), group("Outdoor:", outdoorKeys));
+  if (prior.time.length)
+    legend.push(group("Heat pump:", [legendKey("prior", "a day earlier", `<i style="border-color:${PRIOR}"></i>`)]));
   document.getElementById("legend").innerHTML = legend.join("");
 
   // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit;
@@ -214,6 +233,8 @@ function render() {
       hovertemplate: "Street: %{y:.1f}<extra></extra>" },
     { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
       line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
+    { x: before.x, y: before.y, name: "1 day earlier", xaxis: "x4", yaxis: "y4",   // empty unless 24 h view
+      visible: shown("prior"), line: { color: PRIOR, width: 2 }, hovertemplate: "1 day earlier: %{y:.1f} kWh<extra></extra>" },
     { x: daily.x, y: daily.y, name: "L1", xaxis: "x4", yaxis: "y4",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1.5 },
       hovertemplate: "L1 since midnight: %{y:.1f} kWh<extra></extra>" },
@@ -245,7 +266,7 @@ function render() {
     layout["yaxis" + axis(i)] = { domain: yDomain, anchor: "x" + axis(i) };
   });
   Object.assign(layout.yaxis2, { matches: "y" });
-  const peak = Math.max(0, ...daily.totals.map(([, kwh]) => kwh));
+  const peak = Math.max(0, ...daily.totals.map(([, kwh]) => kwh), ...before.totals.map(([, kwh]) => kwh));
   Object.assign(layout.yaxis4, { range: [0, 1.15 * peak || 1] });   // headroom for the day totals
   // Each day's total at the end of its line, when the panel has room (about 32 px per day).
   if (width * 0.45 / daily.totals.length >= 32)
@@ -265,7 +286,7 @@ async function load() {
     const [zones, outdoor, energy, knmi, tech, noise, version] = await Promise.all([
       optional("zones", hours, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
       optional("outdoor", hours, none),
-      optional("energy", hours, { time: [], kwh: [] }),
+      optional("energy", hours <= 24 ? 2 * hours : hours, { time: [], kwh: [] }),   // 24 h view: + the day before
       optional("knmi", hours, none),                         // only once knmi_temp.py runs
       optional("room", hours, none),                         // optional sensors: an empty panel, not an error
       optional("loudness", hours, { time: [], mean: [] }),
@@ -274,7 +295,9 @@ async function load() {
     status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
                          `${two(now.getHours())}:${two(now.getMinutes())}`;
     showVersion(version);                                    // before render: the header's final height
-    data = { hours, zones: byZone(zones), evohome: zones, outdoor, knmi, energy, tech, noise };
+    const split = splitPrior(energy, now - hours * HOUR);
+    const prior = hours <= 24 ? split.prior : { time: [], kwh: [] };
+    data = { hours, zones: byZone(zones), evohome: zones, outdoor, knmi, energy: { ...energy, ...split.now }, prior, tech, noise };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
