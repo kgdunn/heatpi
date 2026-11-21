@@ -93,25 +93,33 @@ function timeAxis(hours, panelPx) {
 // Width of the outdoor smoother (Gaussian sigma): a reading 1 h away counts 41% as much as the one at
 // that moment, 2 h away 3%, so the curve mostly follows the three nearest hourly readings.
 const SMOOTH_HOURS = 0.75;
+// Technical room: a reading every minute, in 0.1 °C steps. A 30-minute width irons out those steps
+// but keeps the rise and fall of each heat-pump run (they last an hour or more).
+const TECH_SMOOTH_HOURS = 0.5;
 const toTime = s => new Date(s.replace(" ", "T")).getTime();          // local wall-clock string -> ms
 const toLocal = ms => { const d = new Date(ms);
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:00`; };
 
 // Local linear regression with Gaussian weights (a LOESS-style smoother): at every 10 minutes, fit
-// a straight line to the nearby hourly points, weighted by distance, and keep its value there.
+// a straight line to the nearby points, weighted by distance, and keep its value there.
 // The curve follows the trend without being forced through each point, and stays honest at the ends.
+// Only points within 4 widths count (further out a weight is below 0.03%), which keeps a week of
+// minute data fast; where the data has a gap that wide, the curve has a gap too.
 function smooth(times, values, sigmaHours = SMOOTH_HOURS, stepMin = 10) {
   const pts = times.map((t, i) => [toTime(t), values[i]]).filter(([, v]) => v != null);
   if (pts.length < 3) return { x: [], y: [] };
-  const x = [], y = [];
-  for (let t0 = pts[0][0]; t0 <= pts[pts.length - 1][0]; t0 += stepMin * 60e3) {
+  const x = [], y = [], reach = 4 * sigmaHours * HOUR;
+  let lo = 0;
+  for (let t0 = pts[0][0]; t0 <= pts.at(-1)[0]; t0 += stepMin * 60e3) {
+    while (pts[lo][0] < t0 - reach) lo++;
     let sw = 0, sd = 0, sv = 0, sdd = 0, sdv = 0;
-    for (const [t, v] of pts) {
-      const d = (t - t0) / HOUR, w = Math.exp(-0.5 * (d / sigmaHours) ** 2);
+    for (let i = lo; i < pts.length && pts[i][0] <= t0 + reach; i++) {
+      const [t, v] = pts[i], d = (t - t0) / HOUR, w = Math.exp(-0.5 * (d / sigmaHours) ** 2);
       sw += w; sd += w * d; sv += w * v; sdd += w * d * d; sdv += w * d * v;
     }
     const det = sw * sdd - sd * sd;
-    x.push(toLocal(t0)); y.push(det > 1e-9 ? (sv * sdd - sd * sdv) / det : sv / sw);
+    x.push(toLocal(t0));
+    y.push(sw < 1e-6 ? null : det > 1e-9 ? (sv * sdd - sd * sdv) / det : sv / sw);
   }
   return { x, y };
 }
@@ -151,6 +159,15 @@ document.getElementById("legend").onclick = e => {
   try { localStorage.setItem("hidden", JSON.stringify([...hidden])); } catch {}
   render();
 };
+
+// Heat-pump panel: tap its title to switch between kWh per day ("kwh") and power in kW ("kw").
+// Remembered on this device, like the hidden lines.
+let hpMode = (() => { try { return localStorage.getItem("hpMode") ?? "kwh"; } catch { return "kwh"; } })();
+function toggleHeatPump() {
+  hpMode = hpMode === "kwh" ? "kw" : "kwh";
+  try { localStorage.setItem("hpMode", hpMode); } catch {}
+  render();
+}
 
 // One room: its temperature (hover shows "Bedroom: 18.5 [19.0]", setpoint in brackets) and a
 // dotted setpoint line that stays out of the hover box.
@@ -202,7 +219,8 @@ function showVersion(v) {
 
 function render() {
   if (!data) return;
-  const { hours, zones, evohome, outdoor, knmi, energy, prior, tech, noise } = data;
+  const { hours, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise } = data;
+  const cumulative = hpMode === "kwh";
   const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
   const daily = dailyEnergy(energy), before = dailyEnergy(prior);
 
@@ -215,7 +233,7 @@ function render() {
   const outdoorKeys = [legendKey("street", "street", `<b class="dot"></b>`)];
   if (knmi.time.length) outdoorKeys.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
   legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`), group("Outdoor:", outdoorKeys));
-  if (prior.time.length)
+  if (cumulative && prior.time.length)
     legend.push(group("Heat pump:", [legendKey("prior", "a day earlier", `<i style="border-color:${PRIOR}"></i>`)]));
   document.getElementById("legend").innerHTML = legend.join("");
 
@@ -233,15 +251,19 @@ function render() {
       hovertemplate: "Street: %{y:.1f}<extra></extra>" },
     { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
       line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
-    { x: before.x, y: before.y, name: "1 day earlier", xaxis: "x4", yaxis: "y4",   // empty unless 24 h view
-      visible: shown("prior"), line: { color: PRIOR, width: 2 }, hovertemplate: "1 day earlier: %{y:.1f} kWh<extra></extra>" },
-    { x: daily.x, y: daily.y, name: "L1", xaxis: "x4", yaxis: "y4",
-      fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1.5 },
-      hovertemplate: "L1 since midnight: %{y:.1f} kWh<extra></extra>" },
+    ...(cumulative ? [
+      { x: before.x, y: before.y, name: "1 day earlier", xaxis: "x4", yaxis: "y4",   // empty unless 24 h view
+        visible: shown("prior"), line: { color: PRIOR, width: 2 }, hovertemplate: "1 day earlier: %{y:.1f} kWh<extra></extra>" },
+      { x: daily.x, y: daily.y, name: "L1", xaxis: "x4", yaxis: "y4",
+        fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1.5 },
+        hovertemplate: "L1 since midnight: %{y:.1f} kWh<extra></extra>" }] : [
+      { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
+        fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
+        hovertemplate: "L1: %{y:.2f} kW<extra></extra>" }]),
     { x: noise.time, y: noise.mean, name: "Noise", xaxis: "x5", yaxis: "y5",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
       hovertemplate: "Noise: %{y:.0f}<extra></extra>" },
-    { x: tech.time, y: tech.temp_c, name: "Technical room", xaxis: "x5", yaxis: "y6",
+    { ...smooth(tech.time, tech.temp_c, TECH_SMOOTH_HOURS), name: "Technical room", xaxis: "x5", yaxis: "y6",
       line: { color: NEUTRAL, width: 2 }, hovertemplate: "Technical room: %{y:.1f} °C<extra></extra>" });
 
   // Three rows: rooms, then outdoor and heat pump, then the technical room across the full width.
@@ -253,8 +275,9 @@ function render() {
     annotations: [panelTitle(0, "<b>Downstairs</b> °C" + note(evohome, "evohome")),
                   panelTitle(1, "<b>Living room</b> (upstairs) °C" + note(evohome, "evohome")),
                   panelTitle(2, "<b>Outdoor</b> °C" + note(outdoor, "street")),
-                  panelTitle(3, "<b>Heat pump L1</b> kWh per day" + note(energy, "meter")),
-                  panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(line, left)" : `(${missing(tech, "temperature")})`}` +
+                  { ...panelTitle(3, (cumulative ? "<b>Heat pump L1</b> kWh/day ⇄" : "<b>Heat pump L1</b> kW ⇄") +
+                                     note(cumulative ? energy : power, "meter")), captureevents: true },  // tap: switch
+                  panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(smoothed line, left)" : `(${missing(tech, "temperature")})`}` +
                                 ` · ${noise.time.length ? "noise (shaded, right; sensor units)" : missing(noise, "noise")}`)],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
@@ -267,15 +290,21 @@ function render() {
   });
   Object.assign(layout.yaxis2, { matches: "y" });
   const peak = Math.max(0, ...daily.totals.map(([, kwh]) => kwh), ...before.totals.map(([, kwh]) => kwh));
-  Object.assign(layout.yaxis4, { range: [0, 1.15 * peak || 1] });   // headroom for the day totals
+  Object.assign(layout.yaxis4, cumulative ? { range: [0, 1.15 * peak || 1] }    // headroom for the day totals
+                                          : { autorange: true, rangemode: "tozero" });
   // Each day's total at the end of its line, when the panel has room (about 32 px per day).
-  if (width * 0.45 / daily.totals.length >= 32)
+  if (cumulative && width * 0.45 / daily.totals.length >= 32)
     for (const [t, kwh] of daily.totals)
       layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: kwh.toFixed(1), showarrow: false,
                                 xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#3d3c39" } });
   Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, range: robustRange(noise.mean) });
   layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5" };
-  Plotly.react("plots", traces, layout, { responsive: true, displayModeBar: false });
+  const plots = document.getElementById("plots");
+  Plotly.react(plots, traces, layout, { responsive: true, displayModeBar: false });
+  if (!plots.listening) {                        // once: Plotly gives the div .on() at its first plot
+    plots.on("plotly_clickannotation", e => e.index === 3 && toggleHeatPump());
+    plots.listening = true;
+  }
 }
 
 async function load() {
@@ -283,10 +312,11 @@ async function load() {
   const status = document.getElementById("status");
   try {
     const none = { time: [], temp_c: [] };
-    const [zones, outdoor, energy, knmi, tech, noise, version] = await Promise.all([
+    const [zones, outdoor, energy, power, knmi, tech, noise, version] = await Promise.all([
       optional("zones", hours, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
       optional("outdoor", hours, none),
       optional("energy", hours <= 24 ? 2 * hours : hours, { time: [], kwh: [] }),   // 24 h view: + the day before
+      optional("power", hours, { time: [], total_w: [], l1_w: [] }),      // for the kW view of the heat pump
       optional("knmi", hours, none),                         // only once knmi_temp.py runs
       optional("room", hours, none),                         // optional sensors: an empty panel, not an error
       optional("loudness", hours, { time: [], mean: [] }),
@@ -297,7 +327,7 @@ async function load() {
     showVersion(version);                                    // before render: the header's final height
     const split = splitPrior(energy, now - hours * HOUR);
     const prior = hours <= 24 ? split.prior : { time: [], kwh: [] };
-    data = { hours, zones: byZone(zones), evohome: zones, outdoor, knmi, energy: { ...energy, ...split.now }, prior, tech, noise };
+    data = { hours, zones: byZone(zones), evohome: zones, outdoor, knmi, energy: { ...energy, ...split.now }, prior, power, tech, noise };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
