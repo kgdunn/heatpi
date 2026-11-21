@@ -19,7 +19,7 @@
   #legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
   #legend .dotted { border-top-style: dotted; border-color: #6b6a66; }
   #legend .dashed { border-top: 2px dashed #5b5a56; }
-  #legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5b5a56;
+  #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgba(91,90,86,0.5);
                  vertical-align: middle; margin: 0 6px 0 5px; }
   #legend .group { color: #6b6a66; margin-left: 8px; }
   #plots { flex: 1; min-height: 0; width: 100%; }
@@ -104,6 +104,15 @@ function smooth(times, values, sigmaHours = SMOOTH_HOURS, stepMin = 10) {
   return { x, y };
 }
 
+// Axis range from the 1st to the 99th percentile plus a margin: a door slam or a glitch can't
+// squash everything else into a flat line. Too few points: let Plotly choose.
+function robustRange(values) {
+  const v = values.filter(x => x != null).sort((a, b) => a - b);
+  if (v.length < 10) return undefined;
+  const q = p => v[Math.floor(p * (v.length - 1))], lo = q(0.01), hi = q(0.99), pad = 0.1 * (hi - lo) || 1;
+  return [lo - pad, hi + pad];
+}
+
 const axis = i => (i === 0 ? "" : String(i + 1));  // panel i -> Plotly axis suffix
 const panelTitle = (i, text) => ({ text, xref: `x${axis(i)} domain`, yref: `y${axis(i)} domain`,
                                    x: 0, y: 1.02, showarrow: false, xanchor: "left", yanchor: "bottom" });
@@ -137,7 +146,7 @@ function roomTraces(name, z, panel) {
 
 function render() {
   if (!data) return;
-  const { hours, zones, outdoor, knmi, power } = data;
+  const { hours, zones, outdoor, knmi, power, tech, noise } = data;
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
   // Rooms in panel order: downstairs (left panel) first, then upstairs (right panel), A-Z within each.
@@ -148,32 +157,51 @@ function render() {
   if (knmi.time.length) legend.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
   document.getElementById("legend").innerHTML = legend.join("");
 
-  // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit.
+  // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit;
+  // 4: technical room, full width. Its noise sits on the base axis y5 (right) and its temperature on
+  // y6, which overlays y5 (left): Plotly draws an overlaying axis on top, so the line stays above the
+  // shaded noise.
   const traces = [];
   for (const name of rooms) traces.push(...roomTraces(name, zones.get(name), UPSTAIRS.has(name) ? 1 : 0));
   traces.push(
     { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
     { x: outdoor.time, y: outdoor.temp_c, name: "Street", xaxis: "x3", yaxis: "y3", mode: "markers",
-      visible: shown("street"), marker: { color: NEUTRAL, size: 7 }, hovertemplate: "Street: %{y:.1f}<extra></extra>" },
+      visible: shown("street"), marker: { color: NEUTRAL, size: 5, opacity: 0.5 },
+      hovertemplate: "Street: %{y:.1f}<extra></extra>" },
     { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
       line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
     { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
-      hovertemplate: "L1: %{y:.2f} kW<extra></extra>" });
+      hovertemplate: "L1: %{y:.2f} kW<extra></extra>" },
+    { x: noise.time, y: noise.mean, name: "Noise", xaxis: "x5", yaxis: "y5",
+      fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
+      hovertemplate: "Noise: %{y:.0f}<extra></extra>" },
+    { x: tech.time, y: tech.temp_c, name: "Technical room", xaxis: "x5", yaxis: "y6",
+      line: { color: NEUTRAL, width: 2 }, hovertemplate: "Technical room: %{y:.1f} °C<extra></extra>" });
 
-  const panelPx = (document.getElementById("plots").clientWidth - 48) * 0.45;
+  // Three rows: rooms, then outdoor and heat pump, then the technical room across the full width.
+  const width = document.getElementById("plots").clientWidth - 72;
+  const COLS = [[0, 0.45], [0.55, 1]], GAP = 0.1, H = (1 - 2 * GAP) / 3;
+  const row = r => [1 - (r + 1) * H - r * GAP, 1 - r * H - r * GAP];
+  const panels = [[COLS[0], row(0)], [COLS[1], row(0)], [COLS[0], row(1)], [COLS[1], row(1)], [[0, 1], row(2)]];
   const layout = {
-    yaxis2: { matches: "y" }, yaxis4: { rangemode: "tozero" },
     annotations: [panelTitle(0, "<b>Downstairs</b> °C"), panelTitle(1, "<b>Living room</b> (upstairs) °C"),
-                  panelTitle(2, "<b>Outdoor</b> °C"),
-                  panelTitle(3, "<b>Heat pump circuit L1</b> kW")],
-    grid: { rows: 2, columns: 2, pattern: "independent", ygap: 0.22, xgap: 0.1 },
-    margin: { t: 24, r: 12, b: 28, l: 36 }, showlegend: false,
+                  panelTitle(2, "<b>Outdoor</b> °C"), panelTitle(3, "<b>Heat pump circuit L1</b> kW"),
+                  panelTitle(4, "<b>Technical room</b> °C (line, left) · noise (shaded, right; sensor units)")],
+    margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
     uirevision: view,                              // a zoom survives only the 5-min auto-refresh
   };
-  for (let i = 0; i < 4; i++) layout["xaxis" + axis(i)] = { ...timeAxis(hours, panelPx), matches: i ? "x" : undefined };
+  panels.forEach(([xDomain, yDomain], i) => {
+    layout["xaxis" + axis(i)] = { ...timeAxis(hours, width * (xDomain[1] - xDomain[0])), domain: xDomain,
+                                  anchor: "y" + axis(i), matches: i ? "x" : undefined };
+    layout["yaxis" + axis(i)] = { domain: yDomain, anchor: "x" + axis(i) };
+  });
+  Object.assign(layout.yaxis2, { matches: "y" });
+  Object.assign(layout.yaxis4, { rangemode: "tozero" });
+  Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, range: robustRange(noise.mean) });
+  layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5" };
   Plotly.react("plots", traces, layout, { responsive: true, displayModeBar: false });
 }
 
@@ -182,13 +210,15 @@ async function load() {
   const status = document.getElementById("status");
   try {
     const none = { time: [], temp_c: [] };
-    const [zones, outdoor, power, knmi] = await Promise.all([
+    const [zones, outdoor, power, knmi, tech, noise] = await Promise.all([
       ...["zones", "outdoor", "power"].map(n => getSeries(n, hours)),
-      getSeries("knmi", hours).catch(() => none)]);          // optional: only once knmi_temp.py runs
+      getSeries("knmi", hours).catch(() => none),            // optional: only once knmi_temp.py runs
+      getSeries("room", hours).catch(() => none),            // optional sensors: an empty panel, not an error
+      getSeries("loudness", hours).catch(() => ({ time: [], mean: [] }))]);
     const now = new Date();
     status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
                          `${two(now.getHours())}:${two(now.getMinutes())}`;
-    data = { hours, zones: byZone(zones), outdoor, knmi, power };
+    data = { hours, zones: byZone(zones), outdoor, knmi, power, tech, noise };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;

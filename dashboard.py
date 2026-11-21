@@ -33,6 +33,7 @@ QUERIES = {
              "avg(power_l1_w) AS l1_w FROM p1 WHERE ts_utc >= ? GROUP BY 1 ORDER BY 1",  # 1-min means
     "outdoor": "SELECT ts_utc, temp_c FROM street_consensus WHERE ts_utc >= ? ORDER BY ts_utc",
     "knmi": "SELECT ts_utc, temp_c FROM knmi_temp WHERE ts_utc >= ? ORDER BY ts_utc",
+    "loudness": "SELECT ts_utc, mean FROM loudness WHERE ts_utc >= ? ORDER BY ts_utc",  # 1-min means
 }
 
 
