@@ -50,7 +50,7 @@ let view = 0;                                      // bumped by Refresh or a new
 
 async function getSeries(name, hours) {
   const r = await fetch(`/api/${name}?hours=${hours}`);
-  if (!r.ok) throw new Error(`${name}: ${r.status} ${await r.text()}`);
+  if (!r.ok) throw Object.assign(new Error(`${name}: ${r.status} ${r.statusText}`), { status: r.status });
   return r.json();
 }
 
@@ -73,8 +73,9 @@ function timeAxis(hours, panelPx) {
   const stops = [{ dtickrange: [null, HOUR - 1], value: "%H:%M" },
                  { dtickrange: [HOUR, oneDay ? null : 3 * HOUR], value: "%H" }];
   if (!oneDay) stops.push({ dtickrange: [3 * HOUR + 1, null], value: "%d %b, %H" });
+  // Each tick gets room for its label: "07" needs about 30 px, "17 Nov, 04" about 90 px.
   return { type: "date", tickangle: 0, tickformatstops: stops,
-           nticks: Math.max(3, Math.floor(panelPx / (oneDay ? 30 : 50))),
+           nticks: Math.max(3, Math.floor(panelPx / (oneDay ? 30 : 90))),
            hoverformat: oneDay ? "%H:%M" : "%d %b %H:%M" };
 }
 
@@ -112,6 +113,12 @@ function robustRange(values) {
   const q = p => v[Math.floor(p * (v.length - 1))], lo = q(0.01), hi = q(0.99), pad = 0.1 * (hi - lo) || 1;
   return [lo - pad, hi + pad];
 }
+
+// Why an optional series is empty, said in its panel title: the server refused it ("HTTP 404": the
+// dashboard runs older code; "HTTP 503": no such table yet), or the logger wrote nothing in this period.
+const missing = (d, what) => (d.error ? `${what}: ${d.error}` : `no ${what} data in this period`);
+const optional = (name, hours, empty) =>
+  getSeries(name, hours).catch(e => ({ ...empty, error: `HTTP ${e.status ?? "error"}` }));
 
 const axis = i => (i === 0 ? "" : String(i + 1));  // panel i -> Plotly axis suffix
 const panelTitle = (i, text) => ({ text, xref: `x${axis(i)} domain`, yref: `y${axis(i)} domain`,
@@ -188,7 +195,8 @@ function render() {
   const layout = {
     annotations: [panelTitle(0, "<b>Downstairs</b> °C"), panelTitle(1, "<b>Living room</b> (upstairs) °C"),
                   panelTitle(2, "<b>Outdoor</b> °C"), panelTitle(3, "<b>Heat pump circuit L1</b> kW"),
-                  panelTitle(4, "<b>Technical room</b> °C (line, left) · noise (shaded, right; sensor units)")],
+                  panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(line, left)" : `(${missing(tech, "temperature")})`}` +
+                                ` · ${noise.time.length ? "noise (shaded, right; sensor units)" : missing(noise, "noise")}`)],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
     uirevision: view,                              // a zoom survives only the 5-min auto-refresh
@@ -212,9 +220,9 @@ async function load() {
     const none = { time: [], temp_c: [] };
     const [zones, outdoor, power, knmi, tech, noise] = await Promise.all([
       ...["zones", "outdoor", "power"].map(n => getSeries(n, hours)),
-      getSeries("knmi", hours).catch(() => none),            // optional: only once knmi_temp.py runs
-      getSeries("room", hours).catch(() => none),            // optional sensors: an empty panel, not an error
-      getSeries("loudness", hours).catch(() => ({ time: [], mean: [] }))]);
+      optional("knmi", hours, none),                         // only once knmi_temp.py runs
+      optional("room", hours, none),                         // optional sensors: an empty panel, not an error
+      optional("loudness", hours, { time: [], mean: [] })]);
     const now = new Date();
     status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
                          `${two(now.getHours())}:${two(now.getMinutes())}`;
