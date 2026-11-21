@@ -34,12 +34,24 @@ def minute_stats(samples):
     return round(statistics.fmean(samples), 1), round(p95, 1), max(samples)
 
 
+def save(db, sql, rows):
+    """Write rows; if the database stays busy, keep them for the next minute instead of crashing."""
+    try:
+        with db:
+            db.executemany(sql, rows)
+        return []
+    except sqlite3.OperationalError as e:  # "database is locked": another process held it > 30 s
+        print(f"Not saved yet ({e}): keeping {len(rows)} minute(s) for the next try", file=sys.stderr)
+        return rows
+
+
 def log(channel, db_path, hz=10, period=60):
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)  # wait up to 30 s for another writer (default: 5 s)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("CREATE TABLE IF NOT EXISTS loudness "
                "(ts_utc TEXT PRIMARY KEY, mean REAL, p95 REAL, max REAL, n INTEGER)")
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # clean stop under systemd
+    pending = []                                # minutes not yet written
 
     with SMBus(1) as bus:
         while True:
@@ -52,9 +64,9 @@ def log(channel, db_path, hz=10, period=60):
                     print(f"I2C read failed: {e}", file=sys.stderr)
                 time.sleep(1 / hz)
             if samples:
-                with db:
-                    db.execute("INSERT OR IGNORE INTO loudness VALUES (?, ?, ?, ?, ?)",
-                               (start.isoformat(timespec="seconds"), *minute_stats(samples), len(samples)))
+                pending.append((start.isoformat(timespec="seconds"), *minute_stats(samples), len(samples)))
+            if pending:
+                pending = save(db, "INSERT OR IGNORE INTO loudness VALUES (?, ?, ?, ?, ?)", pending)
 
 
 def main():

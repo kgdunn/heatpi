@@ -20,6 +20,7 @@ Everything writes into one SQLite file, `p1.sqlite`, with all times in UTC.
 | `insights.py` | Loudness vs heat pump, and energy before/after each logged change | by hand | – |
 | `dashboard.py` + `web/` | Web page for the iPad: http://heatpi.lan:8080 (Plotly from a CDN, data as JSON) | service `dashboard` | – |
 | `status.sh` | All-in-one check: loggers, data freshness, notes, heat pump, last 6 h | by hand | – |
+| `dblocks.py` | Who holds the database's write lock, and for how long (when a logger says "database is locked") | by hand | – |
 | `update.sh` | Pull the latest code from GitHub; restarts only the services whose code changed | by hand | – |
 
 The loggers use only the Python standard library. `street_consensus.py` needs pandas,

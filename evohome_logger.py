@@ -29,7 +29,7 @@ log = logging.getLogger("evohome_logger")
 
 
 def connect(db_path):
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)  # wait up to 30 s for another writer (default: 5 s)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("CREATE TABLE IF NOT EXISTS zones (ts_utc TEXT, zone TEXT, temp_c REAL, setpoint_c REAL, "
                "zone_mode TEXT, system_mode TEXT, PRIMARY KEY (ts_utc, zone))")

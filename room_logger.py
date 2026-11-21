@@ -36,12 +36,24 @@ def read_once(dev):
     return temp, rh
 
 
+def save(db, sql, rows):
+    """Write rows; if the database stays busy, keep them for the next minute instead of crashing."""
+    try:
+        with db:
+            db.executemany(sql, rows)
+        return []
+    except sqlite3.OperationalError as e:  # "database is locked": another process held it > 30 s
+        print(f"Not saved yet ({e}): keeping {len(rows)} minute(s) for the next try", file=sys.stderr)
+        return rows
+
+
 def log(db_path, period=60, tries=5):
     dev = find_sensor()
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)  # wait up to 30 s for another writer (default: 5 s)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("CREATE TABLE IF NOT EXISTS room "
                "(ts_utc TEXT PRIMARY KEY, temp_c REAL, rh REAL, n INTEGER)")
+    pending = []                                # minutes not yet written
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # clean stop under systemd
 
     while True:
@@ -56,11 +68,11 @@ def log(db_path, period=60, tries=5):
         if readings:          # the median also discards the odd bogus reading
             temp = statistics.median(t for t, _ in readings)
             rh = statistics.median(h for _, h in readings)
-            with db:
-                db.execute("INSERT OR IGNORE INTO room VALUES (?, ?, ?, ?)",
-                           (start.isoformat(timespec="seconds"), round(temp, 1), round(rh, 1), len(readings)))
+            pending.append((start.isoformat(timespec="seconds"), round(temp, 1), round(rh, 1), len(readings)))
         else:
             print("No successful read this minute", file=sys.stderr)
+        if pending:
+            pending = save(db, "INSERT OR IGNORE INTO room VALUES (?, ?, ?, ?)", pending)
         time.sleep(period - time.time() % period)  # wait for the next whole minute
 
 

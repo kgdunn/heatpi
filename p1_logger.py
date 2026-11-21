@@ -81,7 +81,7 @@ def to_row(m):
 def log(ip, db_path, every, flush_every=60):
     """Poll every `every` seconds; write to disk once a minute to spare the SD card."""
     token = TOKEN_FILE.read_text().strip()
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)  # wait up to 30 s for another writer (default: 5 s)
     db.execute("PRAGMA journal_mode=WAL")  # lets you read the file while it logs
     db.execute(
         "CREATE TABLE IF NOT EXISTS p1 (ts_utc TEXT PRIMARY KEY, meter_ts TEXT, "
@@ -93,10 +93,13 @@ def log(ip, db_path, every, flush_every=60):
 
     def flush():
         nonlocal last_flush
-        with db:
-            db.executemany(insert, buffer)
-        buffer.clear()
         last_flush = time.monotonic()
+        try:
+            with db:
+                db.executemany(insert, buffer)
+            buffer.clear()
+        except sqlite3.OperationalError as e:  # database busy > 30 s: keep the rows, retry next minute
+            print(f"Not saved yet ({e}): keeping {len(buffer)} rows", file=sys.stderr)
 
     # systemd stops services with SIGTERM: turn it into a normal exit so the
     # `finally` below still writes the last minute of data.
