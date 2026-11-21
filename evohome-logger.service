@@ -1,0 +1,14 @@
+[Unit]
+Description=evohome zone temperature and setpoint logger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kevindunn
+WorkingDirectory=/home/kevindunn/p1-logger
+ExecStart=/home/kevindunn/p1-logger/.venv/bin/python evohome_logger.py --db p1.sqlite --every 600
+Restart=always
+RestartSec=120
+
+[Install]
+WantedBy=multi-user.target

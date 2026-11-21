@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Log a Grove Loudness Sensor (on the Grove Base Hat) to SQLite, one row per minute.
+
+The sensor outputs an envelope of the sound level (not calibrated dB).
+We sample it 10x a second and store the minute's mean, 95th percentile and max.
+
+Usage:  python3 loudness_logger.py [--channel 0] [--db p1.sqlite]
+Needs:  I2C enabled (sudo raspi-config nonint do_i2c 0) and smbus2.
+"""
+import argparse
+import signal
+import sqlite3
+import statistics
+import sys
+import time
+from datetime import datetime, timezone
+
+from smbus2 import SMBus
+
+HAT_ADDRESS = 0x04  # Grove Base Hat ADC; check with `i2cdetect -y -a 1`
+RATIO_REG = 0x30    # + channel: input as 0.1% of supply (0-1000), as Seeed's grove.py reads it
+
+
+def read_level(bus, channel):
+    """Current sound envelope on analog slot A<channel>, 0-1000."""
+    reg = RATIO_REG + channel
+    bus.write_byte(HAT_ADDRESS, reg)
+    return bus.read_word_data(HAT_ADDRESS, reg)
+
+
+def minute_stats(samples):
+    """Mean, 95th percentile and max: the p95 shows sustained noise, the max short bangs."""
+    p95 = statistics.quantiles(samples, n=20, method="inclusive")[-1] if len(samples) > 1 else samples[0]
+    return round(statistics.fmean(samples), 1), round(p95, 1), max(samples)
+
+
+def log(channel, db_path, hz=10, period=60):
+    db = sqlite3.connect(db_path)
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("CREATE TABLE IF NOT EXISTS loudness "
+               "(ts_utc TEXT PRIMARY KEY, mean REAL, p95 REAL, max REAL, n INTEGER)")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # clean stop under systemd
+
+    with SMBus(1) as bus:
+        while True:
+            start = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+            samples, end = [], time.monotonic() + period - time.time() % period
+            while time.monotonic() < end:  # collect until the minute is over
+                try:
+                    samples.append(read_level(bus, channel))
+                except OSError as e:  # I2C glitch: skip this sample
+                    print(f"I2C read failed: {e}", file=sys.stderr)
+                time.sleep(1 / hz)
+            if samples:
+                with db:
+                    db.execute("INSERT OR IGNORE INTO loudness VALUES (?, ?, ?, ?, ?)",
+                               (start.isoformat(timespec="seconds"), *minute_stats(samples), len(samples)))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--channel", type=int, default=0, help="analog slot: 0 for A0, 2 for A2, ...")
+    parser.add_argument("--db", default="p1.sqlite", help="SQLite file (shared with the P1 logger)")
+    args = parser.parse_args()
+    try:
+        log(args.channel, args.db)
+    except KeyboardInterrupt:
+        print("\nStopped.")
+
+
+if __name__ == "__main__":
+    main()

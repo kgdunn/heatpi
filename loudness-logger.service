@@ -1,0 +1,15 @@
+# Logs the Grove Loudness Sensor (slot A0) once a minute into the same SQLite file.
+#   sudo cp loudness-logger.service /etc/systemd/system/
+#   sudo systemctl enable --now loudness-logger
+[Unit]
+Description=Grove loudness logger
+
+[Service]
+User=kevindunn
+WorkingDirectory=/home/kevindunn/p1-logger
+ExecStart=/usr/bin/python3 loudness_logger.py --channel 0 --db p1.sqlite
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

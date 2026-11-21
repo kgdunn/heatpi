@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heatpi</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  /* The page is exactly one screen high: header on top, the plots fill the rest. */
+  body { margin: 0; height: 100dvh; display: flex; flex-direction: column;
+         font: 15px/1.4 -apple-system, system-ui, sans-serif; background: #fcfcfb; color: #1a1a19; }
+  header { flex: none; display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; padding: 8px 16px 6px; }
+  h1 { font-size: 17px; margin: 0; }
+  select, button { font: inherit; padding: 4px 8px; }
+  #status { color: #6b6a66; font-size: 13px; margin-left: auto; }
+  #legend { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: #3d3c39; }
+  #legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
+  #legend .dotted { border-top-style: dotted; border-color: #6b6a66; }
+  #plots { flex: 1; min-height: 0; width: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Home heating</h1>
+  <select id="hours">
+    <option value="24" selected>24 h</option>
+    <option value="72">3 days</option>
+    <option value="168">7 days</option>
+  </select>
+  <button id="refresh">Refresh</button>
+  <span id="status"></span>
+  <div id="legend"></div>
+</header>
+<div id="plots"></div>
+
+<script>
+// Colour follows the room, never its position (checked for colour-blind separation).
+const ROOM_COLOR = { "Badkamer": "#2a78d6", "Bedroom": "#eb6834", "Logeer": "#1f9e89", "Living Room": "#b0389b" };
+const UPSTAIRS = new Set(["Living Room"]);
+const NEUTRAL = "#5b5a56", LIGHT = "#a3a29d";
+const HOUR = 3600e3;
+let data = null;                                   // last fetch, reused when the screen rotates
+let view = 0;                                      // bumped by Refresh or a new range: resets any zoom
+
+async function getSeries(name, hours) {
+  const r = await fetch(`/api/${name}?hours=${hours}`);
+  if (!r.ok) throw new Error(`${name}: ${r.status} ${await r.text()}`);
+  return r.json();
+}
+
+// Long columns (time, zone, temp_c, setpoint_c) -> Map zone -> {time, temp, setpoint}.
+function byZone(d) {
+  const zones = new Map();
+  d.time.forEach((t, i) => {
+    if (!zones.has(d.zone[i])) zones.set(d.zone[i], { time: [], temp: [], setpoint: [] });
+    const z = zones.get(d.zone[i]);
+    z.time.push(t); z.temp.push(d.temp_c[i]); z.setpoint.push(d.setpoint_c[i]);
+  });
+  return zones;
+}
+
+// Time axis: Plotly picks the tick spacing (so it keeps working when you zoom), at most as many
+// ticks as fit the panel; the label format follows the spacing. One-day view: hours only, never a
+// date. Longer views: "17 Nov, 04". Zoomed in to ticks under an hour apart: "07:30".
+function timeAxis(hours, panelPx) {
+  const oneDay = hours <= 24;
+  const stops = [{ dtickrange: [null, HOUR - 1], value: "%H:%M" },
+                 { dtickrange: [HOUR, oneDay ? null : 3 * HOUR], value: "%H" }];
+  if (!oneDay) stops.push({ dtickrange: [3 * HOUR + 1, null], value: "%d %b, %H" });
+  return { type: "date", tickangle: 0, tickformatstops: stops,
+           nticks: Math.max(3, Math.floor(panelPx / (oneDay ? 30 : 50))),
+           hoverformat: oneDay ? "%H:%M" : "%d %b %H:%M" };
+}
+
+const SMOOTH_HOURS = 1.5;                          // width of the outdoor smoother (Gaussian sigma)
+const toTime = s => new Date(s.replace(" ", "T")).getTime();          // local wall-clock string -> ms
+const toLocal = ms => { const d = new Date(ms);
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:00`; };
+
+// Local linear regression with Gaussian weights (a LOESS-style smoother): at every 10 minutes, fit
+// a straight line to the nearby hourly points, weighted by distance, and keep its value there.
+// The curve follows the trend without being forced through each point, and stays honest at the ends.
+function smooth(times, values, sigmaHours = SMOOTH_HOURS, stepMin = 10) {
+  const pts = times.map((t, i) => [toTime(t), values[i]]).filter(([, v]) => v != null);
+  if (pts.length < 3) return { x: [], y: [] };
+  const x = [], y = [];
+  for (let t0 = pts[0][0]; t0 <= pts[pts.length - 1][0]; t0 += stepMin * 60e3) {
+    let sw = 0, sd = 0, sv = 0, sdd = 0, sdv = 0;
+    for (const [t, v] of pts) {
+      const d = (t - t0) / HOUR, w = Math.exp(-0.5 * (d / sigmaHours) ** 2);
+      sw += w; sd += w * d; sv += w * v; sdd += w * d * d; sdv += w * d * v;
+    }
+    const det = sw * sdd - sd * sd;
+    x.push(toLocal(t0)); y.push(det > 1e-9 ? (sv * sdd - sd * sdv) / det : sv / sw);
+  }
+  return { x, y };
+}
+
+const axis = i => (i === 0 ? "" : String(i + 1));  // panel i -> Plotly axis suffix
+const panelTitle = (i, text) => ({ text, xref: `x${axis(i)} domain`, yref: `y${axis(i)} domain`,
+                                   x: 0, y: 1.02, showarrow: false, xanchor: "left", yanchor: "bottom" });
+// "21 Nov at 08:00": whole hours (rounded down), no weekday.
+const two = n => String(n).padStart(2, "0");
+const when = d => `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })} at ${two(d.getHours())}:00`;
+
+// One room: its temperature (hover shows "Bedroom: 18.5 [19.0]", setpoint in brackets) and a
+// dotted setpoint line that stays out of the hover box.
+function roomTraces(name, z, panel) {
+  const color = ROOM_COLOR[name] ?? NEUTRAL, ax = { xaxis: "x" + axis(panel), yaxis: "y" + axis(panel) };
+  return [{ ...ax, x: z.time, y: z.temp, customdata: z.setpoint, name, line: { color, width: 2 },
+            hovertemplate: `${name}: %{y:.1f} [%{customdata:.1f}]<extra></extra>` },
+          { ...ax, x: z.time, y: z.setpoint, name: `${name} setpoint`, hoverinfo: "skip",
+            line: { color, width: 1.5, shape: "hv", dash: "dot" } }];
+}
+
+function render() {
+  if (!data) return;
+  const { hours, zones, outdoor, knmi, power } = data;
+
+  // Legend as page text, set first so the header has its final height before Plotly measures the space.
+  document.getElementById("legend").innerHTML =
+    [...zones.keys()].map(n => `<span><i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>${n}</span>`).join("")
+    + `<span><i class="dotted"></i>setpoint</span>`;
+
+  // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit.
+  const traces = [];
+  for (const [name, z] of zones) traces.push(...roomTraces(name, z, UPSTAIRS.has(name) ? 1 : 0));
+  traces.push(
+    { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
+      line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
+    { x: outdoor.time, y: outdoor.temp_c, name: "Street", xaxis: "x3", yaxis: "y3", mode: "markers",
+      marker: { color: NEUTRAL, size: 7 }, hovertemplate: "Street: %{y:.1f}<extra></extra>" },
+    { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3",
+      line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
+    { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
+      fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
+      hovertemplate: "L1: %{y:.2f} kW<extra></extra>" });
+
+  const panelPx = (document.getElementById("plots").clientWidth - 48) * 0.45;
+  const layout = {
+    yaxis2: { matches: "y" }, yaxis4: { rangemode: "tozero" },
+    annotations: [panelTitle(0, "<b>Downstairs</b> °C"), panelTitle(1, "<b>Living room</b> (upstairs) °C"),
+                  panelTitle(2, "<b>Outdoor</b> °C · street ● · KNMI Rotterdam ╌"),
+                  panelTitle(3, "<b>Heat pump circuit L1</b> kW")],
+    grid: { rows: 2, columns: 2, pattern: "independent", ygap: 0.22, xgap: 0.1 },
+    margin: { t: 24, r: 12, b: 28, l: 36 }, showlegend: false,
+    hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
+    uirevision: view,                              // a zoom survives only the 5-min auto-refresh
+  };
+  for (let i = 0; i < 4; i++) layout["xaxis" + axis(i)] = { ...timeAxis(hours, panelPx), matches: i ? "x" : undefined };
+  Plotly.react("plots", traces, layout, { responsive: true, displayModeBar: false });
+}
+
+async function load() {
+  const hours = Number(document.getElementById("hours").value);
+  const status = document.getElementById("status");
+  try {
+    const none = { time: [], temp_c: [] };
+    const [zones, outdoor, power, knmi] = await Promise.all([
+      ...["zones", "outdoor", "power"].map(n => getSeries(n, hours)),
+      getSeries("knmi", hours).catch(() => none)]);          // optional: only once knmi_temp.py runs
+    const now = new Date();
+    status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
+                         `${two(now.getHours())}:${two(now.getMinutes())}`;
+    data = { hours, zones: byZone(zones), outdoor, knmi, power };
+    render();
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+  }
+}
+
+// Redraw when the space for the plots changes (rotating the iPad, the header wrapping).
+let resizeTimer;
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 250); })
+  .observe(document.getElementById("plots"));
+const resetAndLoad = () => { view++; load(); };
+document.getElementById("hours").onchange = resetAndLoad;
+document.getElementById("refresh").onclick = resetAndLoad;
+load();
+setInterval(load, 5 * 60 * 1000);   // new evohome data arrives every 10 min
+</script>
+</body>
+</html>

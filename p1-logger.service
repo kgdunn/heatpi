@@ -1,0 +1,18 @@
+# Runs the P1 logger at boot and restarts it if it crashes.
+#   sudo cp p1-logger.service /etc/systemd/system/
+#   sudo systemctl enable --now p1-logger
+#   journalctl -u p1-logger -f        # watch it
+[Unit]
+Description=HomeWizard P1 meter logger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kevindunn
+WorkingDirectory=/home/kevindunn/p1-logger
+ExecStart=/usr/bin/python3 p1_logger.py log 192.168.86.38 --every 10 --db p1.sqlite
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

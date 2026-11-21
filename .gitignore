@@ -1,0 +1,8 @@
+# Data, logs and secrets stay on the Pi: only code goes to GitHub.
+*.sqlite
+*.sqlite-*
+*.log
+*.tgz
+data/
+.venv/
+__pycache__/

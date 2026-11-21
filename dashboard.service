@@ -1,0 +1,14 @@
+[Unit]
+Description=Heatpi dashboard (web page + JSON data, read-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kevindunn
+WorkingDirectory=/home/kevindunn/p1-logger
+ExecStart=/usr/bin/python3 dashboard.py --port 8080
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
