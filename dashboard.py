@@ -12,6 +12,7 @@ Usage:  python3 dashboard.py [--port 8080]
 import argparse
 import json
 import sqlite3
+import subprocess
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -50,21 +51,61 @@ def series(name, hours):
     return data
 
 
+def energy(hours):
+    """Heat-pump circuit (L1) energy in kWh since local midnight, per minute; back to 0 at 00:00.
+    Each row of the "power" query is a 1-minute mean, so it adds watts / 60 / 1000 kWh. Summing
+    starts at the midnight before the window, so the first, partly shown day is right too."""
+    start = datetime.now(timezone.utc) - timedelta(hours=hours)
+    midnight = start.astimezone(LOCAL).replace(hour=0, minute=0, second=0, microsecond=0)
+    with closing(sqlite3.connect(f"file:{DB}?mode=ro", uri=True)) as db:
+        rows = db.execute(QUERIES["power"], (midnight.astimezone(timezone.utc).isoformat(),)).fetchall()
+    out, day, kwh = {"time": [], "kwh": []}, None, 0.0
+    for ts, _, l1_w in rows:
+        local = datetime.fromisoformat(ts).astimezone(LOCAL)
+        if local.date() != day:
+            day, kwh = local.date(), 0.0
+        kwh += (l1_w or 0) / 60 / 1000
+        if local >= start:
+            out["time"].append(local.strftime("%Y-%m-%d %H:%M:%S"))
+            out["kwh"].append(round(kwh, 3))
+    return out
+
+
+COMPUTED = {"energy": energy}                    # series built in Python rather than in one query
+
+
+def version():
+    """The code the Pi runs: its git commit's short hash, time (Unix seconds) and message.
+    Asked on every call, so it is right straight after update.sh, even without a restart."""
+    try:
+        out = subprocess.run(["git", "-C", str(HERE), "log", "-1", "--format=%h%n%ct%n%s"],
+                             capture_output=True, text=True, timeout=5, check=True).stdout.split("\n")
+        return {"commit": out[0], "time": int(out[1]), "subject": out[2]}
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):  # no git, or not a checkout
+        return {}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
+        if url.path == "/api/version":
+            return self.send_json(version())
         if not url.path.startswith("/api/"):
             return super().do_GET()              # static files from web/
         name = url.path.removeprefix("/api/")
-        if name not in QUERIES:
-            return self.send_error(404, f"Unknown series; try one of {sorted(QUERIES)}")
+        if name not in QUERIES and name not in COMPUTED:
+            return self.send_error(404, f"Unknown series; try one of {sorted([*QUERIES, *COMPUTED])}")
         try:
             hours = min(float(parse_qs(url.query).get("hours", ["24"])[0]), MAX_HOURS)
-            body = json.dumps(series(name, hours)).encode()
+            data = COMPUTED[name](hours) if name in COMPUTED else series(name, hours)
         except ValueError:
             return self.send_error(400, "hours must be a number")
         except sqlite3.OperationalError as e:    # e.g. a table that isn't logged yet
             return self.send_error(503, str(e))
+        self.send_json(data)
+
+    def send_json(self, data):
+        body = json.dumps(data).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

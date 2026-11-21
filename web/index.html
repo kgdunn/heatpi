@@ -22,6 +22,15 @@
   #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgba(91,90,86,0.5);
                  vertical-align: middle; margin: 0 6px 0 5px; }
   #legend .group { color: #6b6a66; margin-left: 8px; }
+  #version { font-size: 11px; line-height: 1.3; color: #6b6a66; text-align: right; }
+  @media (max-width: 760px) {      /* phone: the code version top right, the time range on its own line */
+    header { column-gap: 8px; }
+    h1 { font-size: 15px; }
+    select, button { padding: 4px 6px; }
+    #version { order: 1; margin-left: auto; }
+    #status { order: 2; flex-basis: 100%; text-align: right; }
+    #legend { order: 3; }
+  }
   #plots { flex: 1; min-height: 0; width: 100%; }
 </style>
 </head>
@@ -35,6 +44,7 @@
   </select>
   <button id="refresh">Refresh</button>
   <span id="status"></span>
+  <div id="version"></div>
   <div id="legend"></div>
 </header>
 <div id="plots"></div>
@@ -151,9 +161,34 @@ function roomTraces(name, z, panel) {
             visible: shown(name) && shown("setpoint"), line: { color, width: 1.5, shape: "hv", dash: "dot" } }];
 }
 
+// Heat pump: kWh since midnight, back to 0 at 00:00. A gap at each midnight keeps the line from
+// dropping vertically; `totals` holds each day's last value (a whole day's use, or today so far).
+function dailyEnergy(e) {
+  const x = [], y = [], totals = [];
+  e.time.forEach((t, i) => {
+    if (i && t.slice(0, 10) !== e.time[i - 1].slice(0, 10)) {   // a new day starts here
+      totals.push([e.time[i - 1], e.kwh[i - 1]]);
+      x.push(t); y.push(null);
+    }
+    x.push(t); y.push(e.kwh[i]);
+  });
+  if (e.time.length) totals.push([e.time.at(-1), e.kwh.at(-1)]);
+  return { x, y, totals };
+}
+
+// "Code update / 21 Nov 12:30 UTC": when the code the Pi runs was committed (hover: hash and message).
+function showVersion(v) {
+  if (!v.time) return;
+  const d = new Date(v.time * 1000), el = document.getElementById("version");
+  el.innerHTML = `Code update<br>${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })} ` +
+                 `${two(d.getUTCHours())}:${two(d.getUTCMinutes())} UTC`;
+  el.title = `${v.commit}: ${v.subject}`;
+}
+
 function render() {
   if (!data) return;
-  const { hours, zones, outdoor, knmi, power, tech, noise } = data;
+  const { hours, zones, outdoor, knmi, energy, tech, noise } = data;
+  const daily = dailyEnergy(energy);
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
   // Rooms in panel order: downstairs (left panel) first, then upstairs (right panel), A-Z within each.
@@ -178,9 +213,9 @@ function render() {
       hovertemplate: "Street: %{y:.1f}<extra></extra>" },
     { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
       line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
-    { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
-      fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
-      hovertemplate: "L1: %{y:.2f} kW<extra></extra>" },
+    { x: daily.x, y: daily.y, name: "L1", xaxis: "x4", yaxis: "y4",
+      fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1.5 },
+      hovertemplate: "L1 since midnight: %{y:.1f} kWh<extra></extra>" },
     { x: noise.time, y: noise.mean, name: "Noise", xaxis: "x5", yaxis: "y5",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
       hovertemplate: "Noise: %{y:.0f}<extra></extra>" },
@@ -194,7 +229,7 @@ function render() {
   const panels = [[COLS[0], row(0)], [COLS[1], row(0)], [COLS[0], row(1)], [COLS[1], row(1)], [[0, 1], row(2)]];
   const layout = {
     annotations: [panelTitle(0, "<b>Downstairs</b> °C"), panelTitle(1, "<b>Living room</b> (upstairs) °C"),
-                  panelTitle(2, "<b>Outdoor</b> °C"), panelTitle(3, "<b>Heat pump circuit L1</b> kW"),
+                  panelTitle(2, "<b>Outdoor</b> °C"), panelTitle(3, "<b>Heat pump L1</b> kWh per day"),
                   panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(line, left)" : `(${missing(tech, "temperature")})`}` +
                                 ` · ${noise.time.length ? "noise (shaded, right; sensor units)" : missing(noise, "noise")}`)],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
@@ -207,7 +242,13 @@ function render() {
     layout["yaxis" + axis(i)] = { domain: yDomain, anchor: "x" + axis(i) };
   });
   Object.assign(layout.yaxis2, { matches: "y" });
-  Object.assign(layout.yaxis4, { rangemode: "tozero" });
+  const peak = Math.max(0, ...daily.totals.map(([, kwh]) => kwh));
+  Object.assign(layout.yaxis4, { range: [0, 1.15 * peak || 1] });   // headroom for the day totals
+  // Each day's total at the end of its line, when the panel has room (about 32 px per day).
+  if (width * 0.45 / daily.totals.length >= 32)
+    for (const [t, kwh] of daily.totals)
+      layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: kwh.toFixed(1), showarrow: false,
+                                xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#3d3c39" } });
   Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, range: robustRange(noise.mean) });
   layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5" };
   Plotly.react("plots", traces, layout, { responsive: true, displayModeBar: false });
@@ -218,15 +259,17 @@ async function load() {
   const status = document.getElementById("status");
   try {
     const none = { time: [], temp_c: [] };
-    const [zones, outdoor, power, knmi, tech, noise] = await Promise.all([
-      ...["zones", "outdoor", "power"].map(n => getSeries(n, hours)),
+    const [zones, outdoor, energy, knmi, tech, noise, version] = await Promise.all([
+      ...["zones", "outdoor", "energy"].map(n => getSeries(n, hours)),
       optional("knmi", hours, none),                         // only once knmi_temp.py runs
       optional("room", hours, none),                         // optional sensors: an empty panel, not an error
-      optional("loudness", hours, { time: [], mean: [] })]);
+      optional("loudness", hours, { time: [], mean: [] }),
+      fetch("/api/version").then(r => r.json()).catch(() => ({}))]);
     const now = new Date();
     status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
                          `${two(now.getHours())}:${two(now.getMinutes())}`;
-    data = { hours, zones: byZone(zones), outdoor, knmi, power, tech, noise };
+    showVersion(version);                                    // before render: the header's final height
+    data = { hours, zones: byZone(zones), outdoor, knmi, energy, tech, noise };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
