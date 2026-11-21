@@ -22,9 +22,6 @@
   #legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5b5a56;
                  vertical-align: middle; margin: 0 6px 0 5px; }
   #legend .group { color: #6b6a66; margin-left: 8px; }
-  #keys { display: contents; }               /* the buttons sit in #legend's row, before the slider */
-  #smoothing { display: inline-flex; align-items: center; gap: 5px; color: #6b6a66; margin-left: 4px; }
-  #sigma { width: 90px; margin: 0; accent-color: #5b5a56; }
   #plots { flex: 1; min-height: 0; width: 100%; }
 </style>
 </head>
@@ -38,10 +35,7 @@
   </select>
   <button id="refresh">Refresh</button>
   <span id="status"></span>
-  <div id="legend"><span id="keys"></span>
-    <label id="smoothing" title="Width of the outdoor smoother">smoothing
-      <input id="sigma" type="range" min="0.3" max="2" step="0.1"> <output id="sigma-out"></output></label>
-  </div>
+  <div id="legend"></div>
 </header>
 <div id="plots"></div>
 
@@ -84,6 +78,9 @@ function timeAxis(hours, panelPx) {
            hoverformat: oneDay ? "%H:%M" : "%d %b %H:%M" };
 }
 
+// Width of the outdoor smoother (Gaussian sigma): a reading 1 h away counts 41% as much as the one at
+// that moment, 2 h away 3%, so the curve mostly follows the three nearest hourly readings.
+const SMOOTH_HOURS = 0.75;
 const toTime = s => new Date(s.replace(" ", "T")).getTime();          // local wall-clock string -> ms
 const toLocal = ms => { const d = new Date(ms);
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:00`; };
@@ -91,7 +88,7 @@ const toLocal = ms => { const d = new Date(ms);
 // Local linear regression with Gaussian weights (a LOESS-style smoother): at every 10 minutes, fit
 // a straight line to the nearby hourly points, weighted by distance, and keep its value there.
 // The curve follows the trend without being forced through each point, and stays honest at the ends.
-function smooth(times, values, sigmaHours, stepMin = 10) {
+function smooth(times, values, sigmaHours = SMOOTH_HOURS, stepMin = 10) {
   const pts = times.map((t, i) => [toTime(t), values[i]]).filter(([, v]) => v != null);
   if (pts.length < 3) return { x: [], y: [] };
   const x = [], y = [];
@@ -128,18 +125,6 @@ document.getElementById("legend").onclick = e => {
   render();
 };
 
-// Outdoor smoother width (Gaussian sigma, in hours): a slider next to the outdoor keys, remembered on
-// this device. Small = follows each hourly reading closely; large = only the slow trend. Default 0.7 h.
-const sigmaInput = document.getElementById("sigma");
-let smoothHours = (() => { try { return Number(localStorage.getItem("smoothHours")) || 0.7; } catch { return 0.7; } })();
-sigmaInput.value = smoothHours;
-let frame;
-sigmaInput.oninput = () => {
-  smoothHours = Number(sigmaInput.value);
-  try { localStorage.setItem("smoothHours", smoothHours); } catch {}
-  cancelAnimationFrame(frame); frame = requestAnimationFrame(render);   // at most one redraw per frame
-};
-
 // One room: its temperature (hover shows "Bedroom: 18.5 [19.0]", setpoint in brackets) and a
 // dotted setpoint line that stays out of the hover box.
 function roomTraces(name, z, panel) {
@@ -159,14 +144,13 @@ function render() {
   legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`),
               `<span class="group">Outdoor:</span>`, legendKey("street", "street", `<b class="dot"></b>`));
   if (knmi.time.length) legend.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
-  document.getElementById("keys").innerHTML = legend.join("");   // the slider is outside, so a drag isn't cut off
-  document.getElementById("sigma-out").textContent = `${smoothHours.toFixed(1)} h`;
+  document.getElementById("legend").innerHTML = legend.join("");
 
   // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit.
   const traces = [];
   for (const [name, z] of zones) traces.push(...roomTraces(name, z, UPSTAIRS.has(name) ? 1 : 0));
   traces.push(
-    { ...smooth(outdoor.time, outdoor.temp_c, smoothHours), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
+    { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
     { x: outdoor.time, y: outdoor.temp_c, name: "Street", xaxis: "x3", yaxis: "y3", mode: "markers",
       visible: shown("street"), marker: { color: NEUTRAL, size: 7 }, hovertemplate: "Street: %{y:.1f}<extra></extra>" },
