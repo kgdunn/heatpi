@@ -13,9 +13,15 @@
   h1 { font-size: 17px; margin: 0; }
   select, button { font: inherit; padding: 4px 8px; }
   #status { color: #6b6a66; font-size: 13px; margin-left: auto; }
-  #legend { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: #3d3c39; }
+  #legend { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; font-size: 13px; color: #3d3c39; }
+  #legend button { font: inherit; color: inherit; background: none; border: 0; padding: 8px 3px; cursor: pointer; }
+  #legend button[aria-pressed="false"] { opacity: 0.35; text-decoration: line-through; }   /* hidden */
   #legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
   #legend .dotted { border-top-style: dotted; border-color: #6b6a66; }
+  #legend .dashed { border-top: 2px dashed #5b5a56; }
+  #legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5b5a56;
+                 vertical-align: middle; margin: 0 6px 0 5px; }
+  #legend .group { color: #6b6a66; margin-left: 8px; }
   #plots { flex: 1; min-height: 0; width: 100%; }
 </style>
 </head>
@@ -72,7 +78,7 @@ function timeAxis(hours, panelPx) {
            hoverformat: oneDay ? "%H:%M" : "%d %b %H:%M" };
 }
 
-const SMOOTH_HOURS = 1.5;                          // width of the outdoor smoother (Gaussian sigma)
+const SMOOTH_HOURS = 1.0;                          // width of the outdoor smoother (Gaussian sigma)
 const toTime = s => new Date(s.replace(" ", "T")).getTime();          // local wall-clock string -> ms
 const toLocal = ms => { const d = new Date(ms);
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:00`; };
@@ -103,14 +109,28 @@ const panelTitle = (i, text) => ({ text, xref: `x${axis(i)} domain`, yref: `y${a
 const two = n => String(n).padStart(2, "0");
 const when = d => `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })} at ${two(d.getHours())}:00`;
 
+// Legend entries are buttons: tap one to hide or show its lines. The choice is remembered on this
+// device (browser storage; if that is unavailable, it simply lasts until the page reloads).
+const hidden = new Set((() => { try { return JSON.parse(localStorage.getItem("hidden")) ?? []; } catch { return []; } })());
+const shown = id => !hidden.has(id);
+const legendKey = (id, label, swatch) =>
+  `<button type="button" data-key="${id}" aria-pressed="${shown(id)}" title="Tap to hide or show">${swatch}${label}</button>`;
+document.getElementById("legend").onclick = e => {
+  const id = e.target.closest("button")?.dataset.key;
+  if (!id) return;
+  hidden.has(id) ? hidden.delete(id) : hidden.add(id);
+  try { localStorage.setItem("hidden", JSON.stringify([...hidden])); } catch {}
+  render();
+};
+
 // One room: its temperature (hover shows "Bedroom: 18.5 [19.0]", setpoint in brackets) and a
 // dotted setpoint line that stays out of the hover box.
 function roomTraces(name, z, panel) {
   const color = ROOM_COLOR[name] ?? NEUTRAL, ax = { xaxis: "x" + axis(panel), yaxis: "y" + axis(panel) };
   return [{ ...ax, x: z.time, y: z.temp, customdata: z.setpoint, name, line: { color, width: 2 },
-            hovertemplate: `${name}: %{y:.1f} [%{customdata:.1f}]<extra></extra>` },
+            visible: shown(name), hovertemplate: `${name}: %{y:.1f} [%{customdata:.1f}]<extra></extra>` },
           { ...ax, x: z.time, y: z.setpoint, name: `${name} setpoint`, hoverinfo: "skip",
-            line: { color, width: 1.5, shape: "hv", dash: "dot" } }];
+            visible: shown(name) && shown("setpoint"), line: { color, width: 1.5, shape: "hv", dash: "dot" } }];
 }
 
 function render() {
@@ -118,19 +138,21 @@ function render() {
   const { hours, zones, outdoor, knmi, power } = data;
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
-  document.getElementById("legend").innerHTML =
-    [...zones.keys()].map(n => `<span><i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>${n}</span>`).join("")
-    + `<span><i class="dotted"></i>setpoint</span>`;
+  const legend = [...zones.keys()].map(n => legendKey(n, n, `<i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>`));
+  legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`),
+              `<span class="group">Outdoor:</span>`, legendKey("street", "street", `<b class="dot"></b>`));
+  if (knmi.time.length) legend.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
+  document.getElementById("legend").innerHTML = legend.join("");
 
   // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit.
   const traces = [];
   for (const [name, z] of zones) traces.push(...roomTraces(name, z, UPSTAIRS.has(name) ? 1 : 0));
   traces.push(
     { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
-      line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
+      visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
     { x: outdoor.time, y: outdoor.temp_c, name: "Street", xaxis: "x3", yaxis: "y3", mode: "markers",
-      marker: { color: NEUTRAL, size: 7 }, hovertemplate: "Street: %{y:.1f}<extra></extra>" },
-    { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3",
+      visible: shown("street"), marker: { color: NEUTRAL, size: 7 }, hovertemplate: "Street: %{y:.1f}<extra></extra>" },
+    { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
       line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
     { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
@@ -140,7 +162,7 @@ function render() {
   const layout = {
     yaxis2: { matches: "y" }, yaxis4: { rangemode: "tozero" },
     annotations: [panelTitle(0, "<b>Downstairs</b> °C"), panelTitle(1, "<b>Living room</b> (upstairs) °C"),
-                  panelTitle(2, "<b>Outdoor</b> °C · street ● · KNMI Rotterdam ╌"),
+                  panelTitle(2, "<b>Outdoor</b> °C"),
                   panelTitle(3, "<b>Heat pump circuit L1</b> kW")],
     grid: { rows: 2, columns: 2, pattern: "independent", ygap: 0.22, xgap: 0.1 },
     margin: { t: 24, r: 12, b: 28, l: 36 }, showlegend: false,
