@@ -16,8 +16,12 @@ if [ -z "$changed" ]; then echo "Already up to date."; exit 0; fi
 git log --oneline "$before..HEAD"
 for file in $changed; do
   service=${SERVICE[$file]}
-  if [ -n "$service" ] && systemctl is-enabled --quiet "$service" 2>/dev/null; then
-    sudo systemctl restart "$service" && echo "restarted $service"
+  if [ -n "$service" ]; then
+    if systemctl is-active --quiet "$service"; then
+      sudo systemctl restart "$service" && echo "restarted $service"
+    else
+      echo "$service is not running, so not restarted: start it with  sudo systemctl start $service"
+    fi
   fi
   if [[ $file == *.service ]]; then
     echo "$file changed: sudo cp $file /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart ${file%.service}"

@@ -187,7 +187,8 @@ function showVersion(v) {
 
 function render() {
   if (!data) return;
-  const { hours, zones, outdoor, knmi, energy, tech, noise } = data;
+  const { hours, zones, evohome, outdoor, knmi, energy, tech, noise } = data;
+  const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
   const daily = dailyEnergy(energy);
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
@@ -228,8 +229,10 @@ function render() {
   const row = r => [1 - (r + 1) * H - r * GAP, 1 - r * H - r * GAP];
   const panels = [[COLS[0], row(0)], [COLS[1], row(0)], [COLS[0], row(1)], [COLS[1], row(1)], [[0, 1], row(2)]];
   const layout = {
-    annotations: [panelTitle(0, "<b>Downstairs</b> °C"), panelTitle(1, "<b>Living room</b> (upstairs) °C"),
-                  panelTitle(2, "<b>Outdoor</b> °C"), panelTitle(3, "<b>Heat pump L1</b> kWh per day"),
+    annotations: [panelTitle(0, "<b>Downstairs</b> °C" + note(evohome, "evohome")),
+                  panelTitle(1, "<b>Living room</b> (upstairs) °C" + note(evohome, "evohome")),
+                  panelTitle(2, "<b>Outdoor</b> °C" + note(outdoor, "street")),
+                  panelTitle(3, "<b>Heat pump L1</b> kWh per day" + note(energy, "meter")),
                   panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(line, left)" : `(${missing(tech, "temperature")})`}` +
                                 ` · ${noise.time.length ? "noise (shaded, right; sensor units)" : missing(noise, "noise")}`)],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
@@ -260,7 +263,9 @@ async function load() {
   try {
     const none = { time: [], temp_c: [] };
     const [zones, outdoor, energy, knmi, tech, noise, version] = await Promise.all([
-      ...["zones", "outdoor", "energy"].map(n => getSeries(n, hours)),
+      optional("zones", hours, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
+      optional("outdoor", hours, none),
+      optional("energy", hours, { time: [], kwh: [] }),
       optional("knmi", hours, none),                         // only once knmi_temp.py runs
       optional("room", hours, none),                         // optional sensors: an empty panel, not an error
       optional("loudness", hours, { time: [], mean: [] }),
@@ -269,7 +274,7 @@ async function load() {
     status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
                          `${two(now.getHours())}:${two(now.getMinutes())}`;
     showVersion(version);                                    // before render: the header's final height
-    data = { hours, zones: byZone(zones), outdoor, knmi, energy, tech, noise };
+    data = { hours, zones: byZone(zones), evohome: zones, outdoor, knmi, energy, tech, noise };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
