@@ -2,6 +2,8 @@
 
 Everything writes into one SQLite file, `p1.sqlite`, with all times in UTC.
 
+Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Claude Code: [CLAUDE.md](CLAUDE.md).
+
 | File | What it does | How it runs | Table |
 |---|---|---|---|
 | `p1_logger.py` | Reads the HomeWizard P1 meter every 10 s | service `p1-logger` | `p1` |
