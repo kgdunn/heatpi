@@ -2,7 +2,9 @@
 """Log a Grove Loudness Sensor (on the Grove Base Hat) to SQLite, one row per minute.
 
 The sensor outputs an envelope of the sound level (not calibrated dB).
-We sample it 10x a second and store the minute's mean, 95th percentile and max.
+We sample it 10x a second and store the minute's mean, 95th percentile and max, as raw 12-bit
+readings (0-4095). The hat can also give 0.1% of supply (0-1000, register 0x30), but that is
+4x coarser, and this signal moves only a few counts.
 
 Usage:  python3 loudness_logger.py [--channel 0] [--db p1.sqlite]
 Needs:  I2C enabled (sudo raspi-config nonint do_i2c 0) and smbus2.
@@ -18,12 +20,12 @@ from datetime import datetime, timezone
 from smbus2 import SMBus
 
 HAT_ADDRESS = 0x04  # Grove Base Hat ADC; check with `i2cdetect -y -a 1`
-RATIO_REG = 0x30    # + channel: input as 0.1% of supply (0-1000), as Seeed's grove.py reads it
+RAW_REG = 0x10      # + channel: raw 12-bit reading, 0-4095 (what this logger has always stored)
 
 
 def read_level(bus, channel):
-    """Current sound envelope on analog slot A<channel>, 0-1000."""
-    reg = RATIO_REG + channel
+    """Current sound envelope on analog slot A<channel>, 0-4095."""
+    reg = RAW_REG + channel
     bus.write_byte(HAT_ADDRESS, reg)
     return bus.read_word_data(HAT_ADDRESS, reg)
 

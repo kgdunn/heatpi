@@ -278,7 +278,7 @@ function render() {
                   { ...panelTitle(3, (cumulative ? "<b>Heat pump L1</b> kWh/day ⇄" : "<b>Heat pump L1</b> kW ⇄") +
                                      note(cumulative ? energy : power, "meter")), captureevents: true },  // tap: switch
                   panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(smoothed line, left)" : `(${missing(tech, "temperature")})`}` +
-                                ` · ${noise.time.length ? "noise (shaded, right; sensor units)" : missing(noise, "noise")}`)],
+                                ` · ${noise.time.length ? "noise (shaded, right; raw 0–4095)" : missing(noise, "noise")}`)],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
     uirevision: view,                              // a zoom survives only the 5-min auto-refresh
