@@ -93,8 +93,9 @@ function timeAxis(hours, panelPx) {
 // Width of the outdoor smoother (Gaussian sigma): a reading 1 h away counts 41% as much as the one at
 // that moment, 2 h away 3%, so the curve mostly follows the three nearest hourly readings.
 const SMOOTH_HOURS = 0.75;
-// Technical room: a reading every minute, in 0.1 °C steps. A 30-minute width irons out those steps
-// but keeps the rise and fall of each heat-pump run (they last an hour or more).
+// Technical room, temperature and noise: a reading every minute. A 30-minute width irons out the
+// 0.1 °C steps and the minute-to-minute jitter, but keeps the rise and fall of each heat-pump run
+// (they last an hour or more).
 const TECH_SMOOTH_HOURS = 0.5;
 const toTime = s => new Date(s.replace(" ", "T")).getTime();          // local wall-clock string -> ms
 const toLocal = ms => { const d = new Date(ms);
@@ -223,6 +224,7 @@ function render() {
   const cumulative = hpMode === "kwh";
   const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
   const daily = dailyEnergy(energy), before = dailyEnergy(prior);
+  const noiseLine = smooth(noise.time, noise.mean, TECH_SMOOTH_HOURS);
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
   // Rooms in panel order: downstairs (left panel) first, then upstairs (right panel), A-Z within each.
@@ -260,9 +262,9 @@ function render() {
       { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
         fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
         hovertemplate: "L1: %{y:.2f} kW<extra></extra>" }]),
-    { x: noise.time, y: noise.mean, name: "Noise", xaxis: "x5", yaxis: "y5",
+    { ...noiseLine, name: "Noise", xaxis: "x5", yaxis: "y5",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
-      hovertemplate: "Noise: %{y:.0f}<extra></extra>" },
+      hovertemplate: "Noise: %{y:.1f}<extra></extra>" },
     { ...smooth(tech.time, tech.temp_c, TECH_SMOOTH_HOURS), name: "Technical room", xaxis: "x5", yaxis: "y6",
       line: { color: NEUTRAL, width: 2 }, hovertemplate: "Technical room: %{y:.1f} °C<extra></extra>" });
 
@@ -277,8 +279,8 @@ function render() {
                   panelTitle(2, "<b>Outdoor</b> °C" + note(outdoor, "street")),
                   { ...panelTitle(3, (cumulative ? "<b>Heat pump L1</b> kWh/day ⇄" : "<b>Heat pump L1</b> kW ⇄") +
                                      note(cumulative ? energy : power, "meter")), captureevents: true },  // tap: switch
-                  panelTitle(4, `<b>Technical room</b> °C ${tech.time.length ? "(smoothed line, left)" : `(${missing(tech, "temperature")})`}` +
-                                ` · ${noise.time.length ? "noise (shaded, right; raw 0–4095)" : missing(noise, "noise")}`)],
+                  panelTitle(4, `<b>Technical room</b>, smoothed: ${tech.time.length ? "°C line, left" : missing(tech, "temperature")}` +
+                                ` · ${noise.time.length ? "noise shaded, right" : missing(noise, "noise")}`)],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
     uirevision: view,                              // a zoom survives only the 5-min auto-refresh
@@ -297,7 +299,7 @@ function render() {
     for (const [t, kwh] of daily.totals)
       layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: kwh.toFixed(1), showarrow: false,
                                 xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#3d3c39" } });
-  Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, range: robustRange(noise.mean) });
+  Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, range: robustRange(noiseLine.y) });
   layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5" };
   const plots = document.getElementById("plots");
   Plotly.react(plots, traces, layout, { responsive: true, displayModeBar: false });
