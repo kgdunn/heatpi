@@ -140,7 +140,9 @@ function render() {
   const { hours, zones, outdoor, knmi, power } = data;
 
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
-  const legend = [...zones.keys()].map(n => legendKey(n, n, `<i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>`));
+  // Rooms in panel order: downstairs (left panel) first, then upstairs (right panel), A-Z within each.
+  const rooms = [...zones.keys()].sort((a, b) => UPSTAIRS.has(a) - UPSTAIRS.has(b) || a.localeCompare(b));
+  const legend = rooms.map(n => legendKey(n, n, `<i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>`));
   legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`),
               `<span class="group">Outdoor:</span>`, legendKey("street", "street", `<b class="dot"></b>`));
   if (knmi.time.length) legend.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
@@ -148,7 +150,7 @@ function render() {
 
   // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit.
   const traces = [];
-  for (const [name, z] of zones) traces.push(...roomTraces(name, z, UPSTAIRS.has(name) ? 1 : 0));
+  for (const name of rooms) traces.push(...roomTraces(name, zones.get(name), UPSTAIRS.has(name) ? 1 : 0));
   traces.push(
     { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
