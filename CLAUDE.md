@@ -11,7 +11,7 @@ it got here, the heating system, findings and open items are in @NOTES.md. Read 
 - **Data:** `~/p1-logger/p1.sqlite`, WAL mode, all times in UTC (`2026-11-21T09:23:00+00:00`).
   Never committed: `.gitignore` covers `*.sqlite`, `*.log`, `data/`, `.venv/`.
 - **Secrets** live outside the repo: `~/.p1_token` (HomeWizard P1), `~/.evohome` (TCC e-mail and
-  password, chmod 600), `~/.knmi` (KNMI EDR key, not set up yet). Never print, log or commit them.
+  password, chmod 600), `~/.knmi` (KNMI EDR key, set up on 22 Nov 2026). Never print, log or commit them.
   The repo is public: keep personal details (address, e-mail, routines) out of code and notes.
 - **Dashboard:** http://192.168.86.42:8080 on the home network only. Never expose it to the internet.
 - **P1 meter:** HomeWizard P1 at 192.168.86.38 (DHCP reservation), local API v2.
@@ -55,7 +55,7 @@ On the Pi itself, read only, so the loggers are never blocked:
 | `loudness_logger.py` | service `loudness-logger`, Grove Base Hat A0 (I2C 0x04), 10 Hz → 1/min | `loudness` |
 | `dashboard.py` + `web/` | service `dashboard`, port 8080, read-only; imports `balance.py` and `house.py` | none |
 | `outdoor_temp.py && street_consensus.py` | cron `15 * * * *` | `street_temp`, `street_air`, `street_consensus` |
-| `knmi_temp.py` | cron every 10 min, once a key exists | `knmi_temp` |
+| `knmi_temp.py` | cron every 10 min, needs the key in `~/.knmi` | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | cron `25 */6 * * *`, no key | `knmi_hourly` |
 | `note.py "text"` | by hand; `python3 note.py` lists | `events` |
 
@@ -72,7 +72,8 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 | `loudness` | 1/min | technical room: `mean`, `p95`, `max` in raw 12-bit units (0-4095), `n` samples |
 | `street_temp` | hourly | Luchtwachters sensors via the RIVM API: `sensor`, `temp_c` (`street_air`: PM and more) |
 | `street_consensus` | hourly | `temp_c` (sun-robust consensus), `n_sensors`, `sun_elev`, `facade_excess` (our sensor de-4190 minus consensus: sun on our facade). Rewritten whole each hour. |
-| `knmi_temp` | 10 min | KNMI station `0-20000-0-06344` (Rotterdam; confirm with `--find rotterdam`), empty until a key exists |
+| `knmi_temp` | 10 min, since 22 Nov 2026 | KNMI station `0-20000-0-06344` (Rotterdam Airport): `temp_c` |
+| `knmi_live` | 10 min, since 22 Nov 2026 | Same station, for the balance: `rad_wm2` (sunshine on a flat surface), `wind_ms`, `wind_dir`, `rain_mmh`, `soil_c` (soil at 1 m). `ts_utc` is the end of the 10 minutes. The balance uses `rad_wm2` until `knmi_hourly` has the hour. |
 | `knmi_hourly` | hourly, about 2 days late | KNMI Rotterdam (station 344), validated: `temp_c`, `wind_ms`, `wind_dir`, `rad_wm2` (sunshine on a flat surface), `rain_mm`, `rain_h`. `ts_utc` is the start of the hour. |
 | `events` | by hand | `ts_utc`, `note`: settings changes and happenings. The source of truth for "when did X change". |
 

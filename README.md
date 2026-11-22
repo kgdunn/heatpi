@@ -12,7 +12,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `loudness_logger.py` | Grove loudness sensor on A0, one row per minute (optional) | service `loudness-logger` | `loudness` |
 | `room_logger.py` | Grove temperature & humidity sensor (DHT22), one row per minute | service `room-logger` | `room` |
 | `evohome_logger.py` | Every evohome zone's temperature, setpoint and mode, every 5 min (TCC cloud) | service `evohome-logger` | `zones` |
-| `knmi_temp.py` | KNMI Rotterdam air temperature every 10 min (EDR API, free key in `~/.knmi`) | cron, every 10 min | `knmi_temp` |
+| `knmi_temp.py` | KNMI Rotterdam every 10 min (EDR API, free key in `~/.knmi`): air temperature, and sunshine, wind, rain and soil temperature for the heat balance | cron, every 10 min | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | KNMI Rotterdam per hour, no key: sunshine, wind, rain (about 2 days late) | cron, every 6 h | `knmi_hourly` |
 | `compare_temps.py` | One-off check: our sensor vs KNMI Rotterdam, with a chart | by hand | – |
 | `hp_check.py` | Heat pump runs, starts and kWh per day, with an hourly map | by hand | – |
@@ -87,7 +87,7 @@ sudo cp evohome-logger.service /etc/systemd/system/
 sudo systemctl enable --now evohome-logger
 ```
 
-### Optional: KNMI reference temperature (free API key)
+### Optional: KNMI every 10 minutes (free API key): temperature, and live sunshine for the balance
 
 ```bash
 nano ~/.knmi && chmod 600 ~/.knmi             # paste the EDR API key from developer.dataplatform.knmi.nl
