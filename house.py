@@ -69,10 +69,12 @@ PARTS = [
 ]
 
 if __name__ == "__main__":
-    print(f"{'Part':36} {'m2':>5} {'U':>5} {'W/K':>6}  {'loses to':13} src  note")
+    total = sum(p["wk"] for p in PARTS)
+    print(f"{'Part':36} {'m2':>5} {'U':>5} {'W/K':>6} {'share':>5}  {'loses to':13} src  note")
     for p in PARTS:
         size = f"{p['area']:5.1f} {p['u']:5.2f}" if p["area"] else " " * 11
-        print(f"{p['name']:36} {size} {p['wk']:6.1f}  {p['to']:13} {p['source']}  {p['note']}")
+        share = float(f"{100 * p['wk'] / total:.2g}")                   # at most 2 significant figures
+        print(f"{p['name']:36} {size} {p['wk']:6.1f} {share:4g}%  {p['to']:13} {p['source']}  {p['note']}")
     known = sum(p["wk"] for p in PARTS if p["to"] in MEASURED)
     print(f"\n{known:.0f} W/K to outdoors and ground (computed in the balance), "
-          f"{sum(p['wk'] for p in PARTS) - known:.0f} W/K to neighbours (not measured yet)")
+          f"{total - known:.0f} W/K to neighbours (not measured yet)")

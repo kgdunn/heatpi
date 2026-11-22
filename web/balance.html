@@ -42,6 +42,7 @@
   th { font-weight: 600; color: var(--text-2); }
   th:first-child, td:first-child, td.text, th.text { text-align: left; }
   tr.partial td, tr.waiting td { color: var(--muted); }
+  tr.total td { font-weight: 600; }
   #partsTable td:last-child { white-space: normal; min-width: 200px; }   /* the note may wrap */
   @media (max-width: 760px) { h1 { font-size: 15px; } .tile .value { font-size: 19px; } }
 </style>
@@ -228,10 +229,13 @@ function tables() {
     [...days].reverse().map(d => ({ className: d.whole ? "" : "partial", cells: [
       dayLabel(d.day), `${d.share.toFixed(0)}%`, f1(d.left), f1(d.pump), f1(d.appliances), f1(d.sun),
       f1(d.outdoors), f1(d.ground), f1(d.tIn), f1(d.tOut), d.cop.toFixed(2), d.hours] })));
-  fillTable("partsTable", ["|Part", "W/K", "|Loses to", "m²", "U", "|Source", "|Note"],
-    parts.map(p => ({ className: MEASURED.has(p.to) ? "" : "waiting", cells: [
-      p.name, p.wk.toFixed(1), p.to, p.area ?? "", p.u == null ? "" : p.u.toFixed(2),
-      p.source === "doc" ? "document" : "estimate", p.note] })));
+  const total = parts.reduce((sum, p) => sum + p.wk, 0);
+  const share = wk => `${Number((100 * wk / total).toPrecision(2))}%`;     // at most 2 significant figures
+  fillTable("partsTable", ["|Part", "W/K", "% of total", "|Loses to", "m²", "U", "|Source", "|Note"],
+    [...parts.map(p => ({ className: MEASURED.has(p.to) ? "" : "waiting", cells: [
+      p.name, p.wk.toFixed(1), share(p.wk), p.to, p.area ?? "", p.u == null ? "" : p.u.toFixed(2),
+      p.source === "doc" ? "document" : "estimate", p.note] })),
+     { className: "total", cells: ["All parts", total.toFixed(1), "100%", "", "", "", "", ""] }]);
 }
 
 function notes() {
