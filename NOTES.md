@@ -130,13 +130,28 @@ rain) and the page `/balance.html`.
 - COP is a default of 2.3 until counter readings are logged (`note.py "counters: heating=… yield=…"`).
   The installer guide rates the aroTHERM at COP 3.5-4.0 for 7 °C outdoors and 45 °C flow, and
   4.7-5.3 at 35 °C flow: our early-November value was about 40 % under the rating.
-- L1 also carries the hot-water heater. A long run counts as heat pump, a short one as appliances;
-  most of that heat leaves by the drain. Fix: step detection on the 10 s data, or a kWh meter.
+- Hot water: the heater is a plain resistance on L1 and switches in one step of about 2.6 kW
+  within one 10 s reading (test of 22 Nov: +2578 W, +2621 W, −2400 W). `balance.py` finds its runs
+  by those steps and takes them out of the heat pump and the appliances; that heat leaves by the
+  drain. Limits: a run is missed when the heat pump switches in the same 10 s, and another
+  2.2-2.9 kW appliance that runs 5 minutes or longer would count as hot water. A HomeWizard Energy
+  Socket on the heater would remove both.
 - Heat stored in the building is ignored. Fine while the setpoints are constant.
 - The sun "holes" in `house.py` are estimates that include shade. KNMI data is about 2 days late.
 - A rough check with the early-November counters: about 1 kW more went in than outdoors and the
   ground can take. That is too much for the NW wall alone, so either the Vaillant heat counter
   reads high or there is another sink. Measuring the heat pump's output comes first.
+
+**What the steps on L1 showed (22 Nov):**
+
+- The short spikes to about 6 kW are the heat pump plus the hot-water heater (3.7 + 2.6 kW), not
+  the Vaillant's back-up heater.
+- L1 dropped by about 1 kW every 57 minutes that morning (06:22, 07:19, 08:16, 09:13 local), at
+  about 2 °C outdoors. Probably defrost cycles: check with eBUS.
+- The heat pump seems to draw about 3 kW at times (L1 fell from 3.65 to 0.67 kW within a minute).
+  The 4 and 6 kW units stop at 2.3 kW, so it is probably the 8 or 10 kW unit: confirm on its plate.
+- Kitchen-size loads (1.2-1.8 kW for under 5 minutes) are on L1 too. The heat-pump rule ignores
+  them because they are short.
 
 **Next measurements, best first:**
 

@@ -81,9 +81,10 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 - **L1 isn't only the heat pump.** Other appliances share L1 (ironing showed up there). The heat
   pump idles at 60-90 W and runs above 1.2 kW. `recent.py` counts L1 > 500 W as running;
   `hp_check.py` needs 400 W above the quiet level for at least 10 minutes. Short spikes to ~6 kW are
-  probably something else on L1. Find out what shares L1 before using it as the heat pump's input.
-- **Hot water** comes from a separate, purely electric heater, not the heat pump. The heat pump
-  only heats the underfloor-heating buffer tank.
+  the heat pump plus the hot-water heater. Kitchen-size loads of 1.2-1.8 kW show up for minutes.
+- **Hot water** comes from a separate, purely electric heater on L1, not the heat pump. It switches
+  in one step of about 2.6 kW; `balance.py` finds its runs by that step (`hp_check.py` and
+  `recent.py` do not). The heat pump only heats the underfloor-heating buffer tank.
 - **Outdoor temperature:** use `street_consensus.temp_c`. The Vaillant's own outdoor sensor reads
   about 1 K warm (sun, window frame). de-1093 and de-4064 sit against warm walls: stored, left out.
 - **Zone temperatures** come in 0.5 °C steps (TCC cloud API rounding): use means over an hour or

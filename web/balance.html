@@ -122,7 +122,7 @@ function prepare(b) {
     const pump = b.heat_pump[i], appliances = b.appliances[i] + b.people[i], sun = b.sun[i];
     const outdoors = b.windows[i] + b.walls[i] + b.ventilation[i] + b.draughts[i], ground = b.ground[i];
     const heatIn = pump + appliances + (sun ?? 0), explained = outdoors + ground;
-    return { day, hours: b.hours[i], whole: b.hours[i] >= 23, tIn: b.t_in[i], tOut: b.t_out[i],
+    return { day, hours: b.hours[i], whole: b.hours[i] >= 23, tIn: b.t_in[i], tOut: b.t_out[i], hotWater: b.hot_water?.[i],
              cop: b.cop[i], copLogged: b.cop_logged[i], pump, appliances, sun, outdoors, ground,
              heatIn, explained, left: heatIn - explained, share: 100 * explained / heatIn };
   });
@@ -259,10 +259,10 @@ function tables() {
   fillTable("daysTable",     // the key columns first: a phone shows only the first few without scrolling
     [{ label: "Day", text: true, show: dayLabel }, { label: "Explained", show: pct }, { label: "Left over", ...kwh },
      { label: "Heat pump", ...kwh }, { label: "Appliances, people", ...kwh }, { label: "Sun", ...kwh },
-     { label: "To outdoors", ...kwh }, { label: "To ground", ...kwh }, { label: "In °C", ...kwh }, { label: "Out °C", ...kwh },
-     { label: "COP", show: v => v.toFixed(2) }, { label: "Hours" }],
+     { label: "To outdoors", ...kwh }, { label: "To ground", ...kwh }, { label: "Hot water", ...kwh },
+     { label: "In °C", ...kwh }, { label: "Out °C", ...kwh }, { label: "COP", show: v => v.toFixed(2) }, { label: "Hours" }],
     [...days].reverse().map(d => ({ className: d.whole ? "" : "partial", cells: [
-      d.day, d.share, d.left, d.pump, d.appliances, d.sun, d.outdoors, d.ground, d.tIn, d.tOut, d.cop, d.hours] })));
+      d.day, d.share, d.left, d.pump, d.appliances, d.sun, d.outdoors, d.ground, d.hotWater, d.tIn, d.tOut, d.cop, d.hours] })));
 
   const total = parts.reduce((sum, p) => sum + p.wk, 0), largest = Math.max(...parts.map(p => p.wk));
   const share = v => `${Number(v.toPrecision(2))}%`;                    // at most 2 significant figures
@@ -284,7 +284,8 @@ function notes() {
       `1 to 14 November. Log the "this month" counters now and then to replace it:`);
   if (!last.copLogged) list.push({ code: 'python3 note.py "counters: heating=253 yield=319"' });
   list.push("Left over: heat to the two neighbours and to the home above, heat stored in the building, and every error in the other terms.",
-            "Appliances include the hot-water heater. Most of that heat leaves by the drain, so heat in is a few kWh a day too high.",
+            "Hot water: the heater switches on and off in one step of about 2.6 kW on L1. Runs found by those steps are taken " +
+            "out of the heat pump and the appliances. That heat leaves by the drain, so it is in the numbers but not in the bars.",
             days.every(d => d.sun == null)
               ? "Sun: no data yet. Add the knmi_hourly.py line to cron (see README)."
               : "Sun: KNMI publishes about two days late. Until then a day has no sun term (\"?\"), and its left-over is that much too low.",
