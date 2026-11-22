@@ -167,6 +167,31 @@ rain) and the page `/balance.html`.
 5. Wind and rain are stored already. Draughts follow the wind across the facades (its NE-SW part):
    add that term once a baseline exists.
 
+**Open questions for Kevin, most useful first** (remove one when it is answered):
+
+1. The Vaillant "this month" counters, now and then about weekly: heating kWh and environmental
+   yield kWh. The heat pump is about three quarters of the heat in, and its COP is a guess.
+2. Surface temperature of both side walls on the living level, the room air, and the kitchen
+   ceiling, on a cold evening (an infrared thermometer is enough). Sizes the largest unknown loss.
+3. The home above: on which days is it heated, and what temperature does it fall to in between?
+4. What is on L1 besides the heat pump and the hot-water heater? The fuse-box labels per phase.
+   And is any electricity used outside the house (car charger, shed, garden)?
+5. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
+   and whether the controller shows flow temperature, return temperature and flow rate live.
+6. Ventilation: the unit's model and its flow setting in m3/h, the length of bare duct in the cold
+   cupboard, and the air temperature in one supply vent on a cold day.
+7. Hot-water heater: kW and litres on its plate, where it stands, plug or fixed wire. And the end
+   of the shower run of 22 Nov in the step check.
+8. How far is the basement floor below the street and the garden? Is the technical room inside
+   the insulation?
+9. All window sizes by tape measure, and the glass type of the basement windows and doors.
+10. Roughly what temperature do the two neighbours keep?
+11. What stands against the side walls on the living level (fitted cupboards, kitchen units,
+    chimney breasts)? It lowers their 72 W/K.
+12. In winter, from when to when does direct sun reach the back windows?
+13. Decisions: the eBUS adapter, the probes, and a cable route from the technical room to the
+    living level and the home above.
+
 **KNMI hourly API:** in `start=YYYYMMDDHH&end=YYYYMMDDHH` the hour is a range within each day, not
 a moment. Always ask for hours 01 to 24.
 
