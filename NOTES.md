@@ -145,7 +145,8 @@ rain) and the page `/balance.html`.
   2.2-2.9 kW appliance that runs 5 minutes or longer would count as hot water. A HomeWizard Energy
   Socket on the heater would remove both.
 - Heat stored in the building is ignored. Fine while the setpoints are constant.
-- The sun "holes" in `house.py` are estimates that include shade. KNMI data is about 2 days late.
+- The sun "holes" in `house.py` are estimates that include shade. Sunshine comes from KNMI's
+  10-minute data (`knmi_live`, since 22 Nov) until the checked hourly values arrive two days later.
 - A rough check with the early-November counters: about 1 kW more went in than outdoors and the
   ground can take. That is too much for the NW wall alone, so either the Vaillant heat counter
   reads high or there is another sink. Measuring the heat pump's output comes first.
@@ -208,13 +209,19 @@ rain) and the page `/balance.html`.
 - Advice given: finish tuning the curve before starting a baseline for house experiments, because
   every curve change moves the heat pump's COP and so the baseline.
 
+**Phases, from an appliance test on 22 Nov** (each run for a minute, steps read per phase): oven
+L2 (about 3.7 kW), combi-oven as a microwave L3 (1.8 kW), hob left zone L2 (1.7 kW) and right
+zone L3 (1.3 kW), Quooker L2 (1.6 kW, and it tops itself up in bursts of 10-20 s). None is on L1,
+so none can pass for the hot-water heater. Not tested yet: dishwasher and washing machine.
+Something of 1.0-1.25 kW does run on L1 for about 4 minutes at meal times. Ten-second data was
+enough for all of this.
+
 **Electricity groups (main board, list of 22 Nov):** 1 hall, toilet, front room, basement hall;
 2 basement sockets, long side; 3 garden, pump, back of the basement, bathroom, shed (nothing in the
 shed); 4 washing machine; 5 kitchen, wall spots, dining room; 6 Quooker; 7 oven; 8 combi-oven;
 9 dishwasher; 10 hob. A three-phase sub-board in the technical room feeds the heat pump (B16) and
 the hot-water heater (C16, fixed wire through an isolator switch: no plug-in meter possible).
-There is no car charger, air conditioner or dehumidifier. The phase of each group is not known
-yet: the oven, combi-oven, dishwasher and washing machine would fool the hot-water rule if on L1.
+There is no car charger, air conditioner or dehumidifier.
 
 **Open questions for Kevin, most useful first** (remove one when it is answered):
 
@@ -224,8 +231,8 @@ yet: the oven, combi-oven, dishwasher and washing machine would fool the hot-wat
 2. Surface temperature of both side walls on the living level, the room air, and the kitchen
    ceiling, on a cold evening (an infrared thermometer is enough). Sizes the largest unknown loss.
 3. The home above: on which days is it heated, and what temperature does it fall to in between?
-4. Which phase are the oven, combi-oven, dishwasher and washing machine on? Run each and look
-   at the steps per phase. (The groups themselves are listed above.)
+4. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
+   the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
 5. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
    and whether a return temperature and a flow rate can be read anywhere (the flow temperature can).
 6. Ventilation: the unit's model and its flow setting in m3/h, the length of bare duct in the cold
@@ -249,7 +256,8 @@ a moment. Always ask for hours 01 to 24.
 
 - Heat balance: add the `knmi_hourly.py` cron line (README), and log the Vaillant "this month"
   counters about once a week.
-- KNMI EDR key into `~/.knmi`, then `--find rotterdam`, `--show`, and the cron line (README).
+- The ground under the basement is a constant 11 °C in `house.py`. `knmi_live.soil_c` (soil at 1 m,
+  if Rotterdam reports it) could replace it: decide once a winter of it exists.
 - Noise sensor: turn up its gain knob and test by clapping. Kevin can't reach the room easily at
   the moment.
 - evohome high-precision readout (v1 API, 0.01 °C) instead of 0.5 °C steps.

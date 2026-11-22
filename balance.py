@@ -15,7 +15,8 @@ How each term is made, hour by hour:
               taken out: that heat leaves by the drain, so it is no heat in.
   appliances  all other electricity: it ends as heat indoors.
   people      house.PEOPLE_W, day and night.
-  sun         KNMI sunshine on a flat surface, turned onto each facade (needs knmi_hourly.py).
+  sun         KNMI sunshine on a flat surface, turned onto each facade. From knmi_hourly.py (checked
+              values, two days late) and, until those arrive, from knmi_temp.py (10-minute values).
   explained   W/K x (inside - other side) for each part.
 
 Only the standard library, so dashboard.py can import it.
@@ -164,7 +165,13 @@ def hourly(db_path, since):
         zones = rows(db, f"SELECT {HOURLY}, zone, avg(temp_c) FROM zones WHERE ts_utc >= ? GROUP BY 1, 2", since)
         outdoor = dict(rows(db, f"SELECT {HOURLY}, avg(temp_c) FROM street_consensus WHERE ts_utc >= ? GROUP BY 1",
                             since))
-        sunshine = dict(rows(db, f"SELECT {HOURLY}, rad_wm2 FROM knmi_hourly WHERE ts_utc >= ?", since))
+        # Sunshine: the 10-minute values of the last days (knmi_temp.py; an hour needs 4 of its 6),
+        # replaced by KNMI's checked hourly values once those are published, two days later.
+        sunshine = dict(rows(db, "SELECT (CAST(strftime('%s', substr(ts_utc, 1, 19)) AS INTEGER) - 600) / 3600, "
+                                 "avg(rad_wm2) FROM knmi_live WHERE ts_utc >= ? GROUP BY 1 HAVING count(rad_wm2) >= 4",
+                             since))
+        sunshine.update(rows(db, f"SELECT {HOURLY}, rad_wm2 FROM knmi_hourly WHERE ts_utc >= ? "
+                                 "AND rad_wm2 IS NOT NULL", since))
         steps = cop_steps(rows(db, "SELECT ts_utc, note FROM events WHERE note LIKE '%counters:%' ORDER BY ts_utc"))
         jumps = rows(db, STEPS, since, *HEATER_W)
     if not power:
