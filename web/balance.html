@@ -41,8 +41,14 @@
   th, td { padding: 4px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); }
   th { font-weight: 600; color: var(--text-2); }
   th:first-child, td:first-child, td.text, th.text { text-align: left; }
-  tr.partial td, tr.waiting td { color: var(--muted); }
-  tr.total td { font-weight: 600; }
+  tr.partial td { color: var(--muted); }
+  tfoot td { font-weight: 600; }
+  th button { font: inherit; color: inherit; background: none; border: 0; padding: 6px 0; cursor: pointer; }
+  /* A bar behind a row's first cell, as in a horizontal bar graph: its length is the row's share. */
+  td.barred { position: relative; }
+  td.barred i { position: absolute; left: 0; top: 50%; height: 20px; margin-top: -10px;   /* same thickness in every row */
+                border-radius: 0 4px 4px 0; opacity: 0.3; }
+  td.barred span { position: relative; }
   #partsTable td:last-child { white-space: normal; min-width: 200px; }   /* the note may wrap */
   @media (max-width: 760px) { h1 { font-size: 15px; } .tile .value { font-size: 19px; } }
 </style>
@@ -93,7 +99,8 @@
   <ul id="notes"></ul>
 
   <h2>The house <small>from house.py</small></h2>
-  <p>Each part loses W/K × (inside − other side). Grey rows wait for a temperature on their other side.</p>
+  <p>Each part loses W/K × (inside − other side). The bar shows its share of the total: blue to outdoors, green to
+     the ground, grey to a side whose temperature is not measured yet. Tap a column heading to sort.</p>
   <div class="scroll"><table id="partsTable"></table></div>
 </main>
 
@@ -101,7 +108,7 @@
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const COLOR = Object.fromEntries(["pump", "appliances", "sun", "outdoors", "ground", "left", "surface", "muted", "rule", "text"]
   .map(k => [k, css("--" + k)]));
-const DAY = 864e5, MEASURED = new Set(["outdoors", "ground"]);
+const DAY = 864e5;
 const HOVER = { bgcolor: "#ffffff", bordercolor: COLOR.rule, font: { color: COLOR.text }, align: "left" };
 const two = n => String(n).padStart(2, "0");
 const dayLabel = (day, weekday = true) => new Date(day + "T12:00").toLocaleDateString("en-GB",
@@ -127,17 +134,41 @@ function el(tag, text, className) {
   if (className) e.className = className;
   return e;
 }
-function fillTable(id, head, rows) {            // rows: [{cells: [...], className}]; text columns are strings
-  const table = document.getElementById(id);
+// A table with clickable column headings: the first tap sorts numbers from large to small and text from
+// A to Z, the next tap reverses. columns: [{label, text, show}]; `show` turns a value into what is printed.
+// rows: [{cells: [raw values], className, bar: {width (0-1), color}}]. `foot` is one row that stays last.
+const sorting = {};                                // table id -> {column, descending}
+function fillTable(id, columns, rows, foot) {
+  const table = document.getElementById(id), sort = sorting[id];
+  const print = (c, v) => (v == null ? "" : c.show ? c.show(v) : v);
+  const ordered = !sort ? rows : [...rows].sort((x, y) => {
+    const a = x.cells[sort.column], b = y.cells[sort.column];
+    if (a == null || b == null) return (a == null) - (b == null);              // empty cells last
+    return (typeof a === "number" ? a - b : String(a).localeCompare(b)) * (sort.descending ? -1 : 1);
+  });
   table.replaceChildren();
-  const tr = table.createTHead().insertRow();
-  head.forEach(h => tr.append(el("th", h.replace(/^\|/, ""), h.startsWith("|") ? "text" : "")));
+  const head = table.createTHead().insertRow();
+  columns.forEach((c, i) => {
+    const sorted = sort?.column === i, th = el("th", null, c.text ? "text" : "");
+    const button = el("button", c.label + (sorted ? (sort.descending ? " ▼" : " ▲") : ""));
+    button.onclick = () => { sorting[id] = { column: i, descending: sorted ? !sort.descending : !c.text };
+                             fillTable(id, columns, rows, foot); };
+    if (sorted) th.setAttribute("aria-sort", sort.descending ? "descending" : "ascending");
+    th.append(button); head.append(th);
+  });
+  const addRow = (section, row) => {
+    const r = section.insertRow();
+    r.className = row.className ?? "";
+    row.cells.forEach((v, i) => r.append(el("td", print(columns[i], v), columns[i].text ? "text" : "")));
+    if (row.bar) {                                 // the name is printed over its bar
+      const cell = r.cells[0], name = el("span", cell.textContent), bar = el("i");
+      bar.style.width = `${100 * row.bar.width}%`; bar.style.background = row.bar.color;
+      cell.className = "text barred"; cell.replaceChildren(bar, name);
+    }
+  };
   const body = table.createTBody();
-  for (const { cells, className } of rows) {
-    const r = body.insertRow();
-    r.className = className ?? "";
-    cells.forEach((c, i) => r.append(el("td", c, head[i].startsWith("|") ? "text" : "")));
-  }
+  ordered.forEach(row => addRow(body, row));
+  if (foot) addRow(table.createTFoot(), foot);
 }
 
 function tiles() {
@@ -224,18 +255,25 @@ function signature() {
 }
 
 function tables() {
+  const pct = v => `${v.toFixed(0)}%`, kwh = { show: f1 };
   fillTable("daysTable",     // the key columns first: a phone shows only the first few without scrolling
-    ["|Day", "Explained", "Left over", "Heat pump", "Appliances, people", "Sun", "To outdoors", "To ground", "In °C", "Out °C", "COP", "Hours"],
+    [{ label: "Day", text: true, show: dayLabel }, { label: "Explained", show: pct }, { label: "Left over", ...kwh },
+     { label: "Heat pump", ...kwh }, { label: "Appliances, people", ...kwh }, { label: "Sun", ...kwh },
+     { label: "To outdoors", ...kwh }, { label: "To ground", ...kwh }, { label: "In °C", ...kwh }, { label: "Out °C", ...kwh },
+     { label: "COP", show: v => v.toFixed(2) }, { label: "Hours" }],
     [...days].reverse().map(d => ({ className: d.whole ? "" : "partial", cells: [
-      dayLabel(d.day), `${d.share.toFixed(0)}%`, f1(d.left), f1(d.pump), f1(d.appliances), f1(d.sun),
-      f1(d.outdoors), f1(d.ground), f1(d.tIn), f1(d.tOut), d.cop.toFixed(2), d.hours] })));
-  const total = parts.reduce((sum, p) => sum + p.wk, 0);
-  const share = wk => `${Number((100 * wk / total).toPrecision(2))}%`;     // at most 2 significant figures
-  fillTable("partsTable", ["|Part", "W/K", "% of total", "|Loses to", "m²", "U", "|Source", "|Note"],
-    [...parts.map(p => ({ className: MEASURED.has(p.to) ? "" : "waiting", cells: [
-      p.name, p.wk.toFixed(1), share(p.wk), p.to, p.area ?? "", p.u == null ? "" : p.u.toFixed(2),
-      p.source === "doc" ? "document" : "estimate", p.note] })),
-     { className: "total", cells: ["All parts", total.toFixed(1), "100%", "", "", "", "", ""] }]);
+      d.day, d.share, d.left, d.pump, d.appliances, d.sun, d.outdoors, d.ground, d.tIn, d.tOut, d.cop, d.hours] })));
+
+  const total = parts.reduce((sum, p) => sum + p.wk, 0), largest = Math.max(...parts.map(p => p.wk));
+  const share = v => `${Number(v.toPrecision(2))}%`;                    // at most 2 significant figures
+  const tint = { outdoors: COLOR.outdoors, ground: COLOR.ground };      // as in the bars above; grey = not measured
+  fillTable("partsTable",
+    [{ label: "Part", text: true }, { label: "W/K", show: v => v.toFixed(1) }, { label: "% of total", show: share },
+     { label: "Loses to", text: true }, { label: "m²" }, { label: "U", show: v => v.toFixed(2) },
+     { label: "Source", text: true }, { label: "Note", text: true }],
+    parts.map(p => ({ bar: { width: p.wk / largest, color: tint[p.to] ?? COLOR.left }, cells: [
+      p.name, p.wk, 100 * p.wk / total, p.to, p.area, p.u, p.source === "doc" ? "document" : "estimate", p.note] })),
+    { cells: ["All parts", total, 100, null, null, null, null, null] });
 }
 
 function notes() {
@@ -250,7 +288,7 @@ function notes() {
             days.every(d => d.sun == null)
               ? "Sun: no data yet. Add the knmi_hourly.py line to cron (see README)."
               : "Sun: KNMI publishes about two days late. Until then a day has no sun term (\"?\"), and its left-over is that much too low.",
-            "Pale bars and grey rows: a day with under 23 hours of data, such as today.");
+            "Pale bars and grey rows in the numbers: a day with under 23 hours of data, such as today.");
   document.getElementById("notes").replaceChildren(...list.map(item => {
     const li = el("li", typeof item === "string" ? item : null);
     if (item.code) { li.append(el("code", item.code)); li.style.listStyle = "none"; }
