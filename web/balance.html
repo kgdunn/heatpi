@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heat balance</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  /* Colours: one per term, checked for colour-blind separation between neighbours in the stack.
+     Grey is the part nobody has explained yet. */
+  :root { --surface: #fcfcfb; --text: #1a1a19; --text-2: #52514e; --muted: #6b6a66; --rule: #e4e3df;
+          --pump: #eb6834; --appliances: #6250d6; --sun: #eda100; --outdoors: #2a78d6; --ground: #1baf7a; --left: #a3a29d; }
+  body { margin: 0; font: 15px/1.4 -apple-system, system-ui, sans-serif; background: var(--surface); color: var(--text); }
+  header { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; padding: 8px 16px 6px; }
+  h1 { font-size: 17px; margin: 0; }
+  select { font: inherit; padding: 4px 8px; }
+  a { color: #1c5cab; }
+  header a { font-size: 14px; }
+  #status { color: var(--muted); font-size: 13px; }
+  #version { font-size: 11px; line-height: 1.3; color: var(--muted); text-align: right; margin-left: auto; }
+  main { max-width: 980px; margin: 0 auto; padding: 0 16px 40px; }
+  h2 { font-size: 15px; margin: 22px 0 2px; }
+  p, li { color: var(--text-2); font-size: 13px; }
+  h2 + p { margin: 0 0 4px; }
+  ul { padding-left: 18px; margin: 4px 0; }
+  code { font-size: 12px; background: #f1f0ec; padding: 1px 4px; border-radius: 3px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+  .tile { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  .tile .label { font-size: 12px; color: var(--muted); }
+  .tile .value { font-size: 22px; font-weight: 600; line-height: 1.2; }
+  .tile .sub { font-size: 12px; color: var(--text-2); }
+  .legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: var(--text-2); }
+  .legend span { white-space: nowrap; }
+  .legend b { font-weight: normal; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
+  .legend i.dot { border-radius: 50%; }
+  .legend i.line { height: 0; width: 16px; border-top: 2px solid; border-radius: 0; vertical-align: middle; }
+  .chart { width: 100%; height: 300px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; }
+  th, td { padding: 4px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; color: var(--text-2); }
+  th:first-child, td:first-child, td.text, th.text { text-align: left; }
+  tr.partial td, tr.waiting td { color: var(--muted); }
+  #partsTable td:last-child { white-space: normal; min-width: 200px; }   /* the note may wrap */
+  @media (max-width: 760px) { h1 { font-size: 15px; } .tile .value { font-size: 19px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Heat balance</h1>
+  <select id="days" aria-label="Period">
+    <option value="7">7 days</option>
+    <option value="14" selected>14 days</option>
+    <option value="31">31 days</option>
+  </select>
+  <a href="/">Live view</a>
+  <span id="status"></span>
+  <div id="version"></div>
+</header>
+<main>
+  <h2 id="tilesTitle"></h2>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>Heat in and out <small>kWh per day</small></h2>
+  <p>Up: heat that came in. Down: where it went. The number on top is the share that is explained.</p>
+  <div class="legend">
+    <span><b>In:</b></span>
+    <span><i style="background:var(--pump)"></i>heat pump</span>
+    <span><i style="background:var(--appliances)"></i>appliances and people</span>
+    <span><i style="background:var(--sun)"></i>sun</span>
+    <span><b>Out:</b></span>
+    <span><i style="background:var(--outdoors)"></i>to outdoors</span>
+    <span><i style="background:var(--ground)"></i>to the ground</span>
+    <span><i style="background:var(--left)"></i>left over</span>
+  </div>
+  <div id="bars" class="chart" role="img" aria-label="Stacked bars per day: heat in above zero, heat out below. The table below holds the same numbers."></div>
+
+  <h2>Energy signature <small>one dot per whole day</small></h2>
+  <p id="signatureNote"></p>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--pump)"></i>heat in</span>
+    <span><i class="dot" style="background:var(--outdoors)"></i>explained losses</span>
+    <span><i class="line" style="border-color:var(--pump)"></i>straight line through heat in</span>
+  </div>
+  <div id="signature" class="chart" role="img" aria-label="Average power per day against the temperature difference between inside and outside."></div>
+
+  <h2>The numbers <small>kWh per day</small></h2>
+  <div class="scroll"><table id="daysTable"></table></div>
+
+  <h2>What the balance assumes</h2>
+  <ul id="notes"></ul>
+
+  <h2>The house <small>from house.py</small></h2>
+  <p>Each part loses W/K × (inside − other side). Grey rows wait for a temperature on their other side.</p>
+  <div class="scroll"><table id="partsTable"></table></div>
+</main>
+
+<script>
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const COLOR = Object.fromEntries(["pump", "appliances", "sun", "outdoors", "ground", "left", "surface", "muted", "rule", "text"]
+  .map(k => [k, css("--" + k)]));
+const DAY = 864e5, MEASURED = new Set(["outdoors", "ground"]);
+const HOVER = { bgcolor: "#ffffff", bordercolor: COLOR.rule, font: { color: COLOR.text }, align: "left" };
+const two = n => String(n).padStart(2, "0");
+const dayLabel = (day, weekday = true) => new Date(day + "T12:00").toLocaleDateString("en-GB",
+  { weekday: weekday ? "short" : undefined, day: "numeric", month: "short" });
+const f1 = v => (v == null ? "?" : v.toFixed(1));
+let days = [], parts = [];
+
+// One object per day. "Explained" = losses to outdoors and to the ground; "left" = the rest of the heat in.
+function prepare(b) {
+  return b.day.map((day, i) => {
+    const pump = b.heat_pump[i], appliances = b.appliances[i] + b.people[i], sun = b.sun[i];
+    const outdoors = b.windows[i] + b.walls[i] + b.ventilation[i] + b.draughts[i], ground = b.ground[i];
+    const heatIn = pump + appliances + (sun ?? 0), explained = outdoors + ground;
+    return { day, hours: b.hours[i], whole: b.hours[i] >= 23, tIn: b.t_in[i], tOut: b.t_out[i],
+             cop: b.cop[i], copLogged: b.cop_logged[i], pump, appliances, sun, outdoors, ground,
+             heatIn, explained, left: heatIn - explained, share: 100 * explained / heatIn };
+  });
+}
+
+function el(tag, text, className) {
+  const e = document.createElement(tag);
+  if (text != null) e.textContent = text;
+  if (className) e.className = className;
+  return e;
+}
+function fillTable(id, head, rows) {            // rows: [{cells: [...], className}]; text columns are strings
+  const table = document.getElementById(id);
+  table.replaceChildren();
+  const tr = table.createTHead().insertRow();
+  head.forEach(h => tr.append(el("th", h.replace(/^\|/, ""), h.startsWith("|") ? "text" : "")));
+  const body = table.createTBody();
+  for (const { cells, className } of rows) {
+    const r = body.insertRow();
+    r.className = className ?? "";
+    cells.forEach((c, i) => r.append(el("td", c, head[i].startsWith("|") ? "text" : "")));
+  }
+}
+
+function tiles() {
+  const d = [...days].reverse().find(x => x.whole) ?? days.at(-1);
+  document.getElementById("tilesTitle").textContent = dayLabel(d.day) + (d.whole ? "" : `, ${d.hours} hours so far`);
+  const tile = (label, value, sub) => { const t = el("div", null, "tile");
+    t.append(el("div", label, "label"), el("div", value, "value"), el("div", sub, "sub")); return t; };
+  document.getElementById("tiles").replaceChildren(
+    tile("Heat in", `${f1(d.heatIn)} kWh`, `heat pump ${f1(d.pump)}, sun ${f1(d.sun)}`),
+    tile("Explained", `${d.share.toFixed(0)}%`, `${f1(d.explained)} kWh to outdoors and ground`),
+    tile("Left over", `${f1(d.left)} kWh`, "neighbours, storage, errors"));
+}
+
+// Stacked bars per day. Heat in goes up; heat out goes down as negative values. The left-over makes
+// both sides equally long: when more is explained than came in, it is negative and so stacks upward.
+function bars() {
+  const div = document.getElementById("bars"), plotPx = div.clientWidth - 52;
+  const span = days.length + 0.2, slotPx = plotPx / span;
+  const width = Math.min(24, 0.7 * slotPx) / slotPx * DAY;              // bars at most 24 px wide
+  const x = days.map(d => d.day), opacity = days.map(d => (d.whole ? 1 : 0.45));
+  const bar = (name, key, color, sign) => ({
+    type: "bar", name, x, width, y: days.map(d => (d[key] == null ? null : sign * d[key])), customdata: days.map(d => d[key]),
+    marker: { color, opacity, line: { color: COLOR.surface, width: 2 } },   // the line is a gap between segments
+    hovertemplate: `${name}: %{customdata:.1f} kWh<extra></extra>` });
+  const traces = [bar("Heat pump", "pump", COLOR.pump, 1), bar("Appliances and people", "appliances", COLOR.appliances, 1),
+                  bar("Sun", "sun", COLOR.sun, 1), bar("To outdoors", "outdoors", COLOR.outdoors, -1),
+                  bar("To the ground", "ground", COLOR.ground, -1), bar("Left over", "left", COLOR.left, -1)];
+  const every = Math.ceil(46 / slotPx);                                   // a date label needs about 46 px
+  const layout = {
+    barmode: "relative", barcornerradius: 4, showlegend: false, hovermode: "x unified", hoverlabel: HOVER,
+    margin: { t: 18, r: 8, b: 26, l: 44 }, paper_bgcolor: COLOR.surface, plot_bgcolor: COLOR.surface,
+    xaxis: { type: "date", tickformat: "%-d %b", hoverformat: "%a %-d %b", tick0: x[0], dtick: every * DAY, tickangle: 0,
+             range: [new Date(x[0] + "T00:00").getTime() - 0.6 * DAY, new Date(x.at(-1) + "T00:00").getTime() + 0.6 * DAY],
+             showgrid: false, linecolor: COLOR.rule },
+    yaxis: { ticksuffix: " ", gridcolor: COLOR.rule, zerolinecolor: COLOR.muted, zerolinewidth: 1, fixedrange: true },
+    annotations: slotPx < 34 ? [] : days.map(d => ({
+      x: d.day, y: d.heatIn + Math.max(0, -d.left), text: `${d.share.toFixed(0)}%`, showarrow: false, yanchor: "bottom",
+      font: { size: 11, color: d.whole ? COLOR.text : COLOR.muted } })),
+  };
+  Plotly.react(div, traces, layout, { responsive: true, displayModeBar: false });
+}
+
+// Least squares: y = a + b·x.
+function fitLine(points) {
+  const n = points.length, mx = points.reduce((s, p) => s + p.x, 0) / n, my = points.reduce((s, p) => s + p.y, 0) / n;
+  const sxx = points.reduce((s, p) => s + (p.x - mx) ** 2, 0), sxy = points.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+  return { slope: sxy / sxx, at: v => my + sxy / sxx * (v - mx), spread: Math.sqrt(sxx / n) };
+}
+
+// Energy signature: average power of each whole day against (inside − outside). The slope of the line
+// through "heat in" is the heat the house needs per kelvin; the dots of the explained losses show how
+// much of that slope the known parts account for. A later change to the house moves new dots off the line.
+function signature() {
+  const whole = days.filter(d => d.whole).map(d => ({ ...d, x: d.tIn - d.tOut, y: d.heatIn / d.hours, known: d.explained / d.hours }));
+  const fitted = whole.filter(d => d.sun != null), note = document.getElementById("signatureNote");
+  const line = fitted.length >= 4 ? fitLine(fitted) : null, usable = line && line.spread >= 0.7;
+  const knownSlope = parts.filter(p => p.to === "outdoors").reduce((s, p) => s + p.wk, 0);
+  note.textContent = !usable
+    ? "The line appears after 4 whole days with sun data and at least 2 K between the mildest and the coldest day."
+    : line.slope <= 0
+    ? "Heat in does not rise with the temperature difference over these days, so something else drives it."
+    : `Heat in rises ${(1000 * line.slope).toFixed(0)} W for every kelvin between inside and outside. ` +
+      `The parts that face outdoors explain ${knownSlope.toFixed(0)} W per kelvin of that.`;
+  const xs = whole.map(d => d.x), lo = Math.min(...xs), hi = Math.max(...xs);
+  const dots = (name, key, color, opacity) => ({
+    type: "scatter", mode: "markers", name, x: xs, y: whole.map(d => d[key]), customdata: whole.map(d => dayLabel(d.day)),
+    marker: { color, size: 11, opacity, line: { color: COLOR.surface, width: 2 } },   // the ring keeps touching dots apart
+    hovertemplate: `%{customdata}<br>${name}: %{y:.2f} kW at %{x:.1f} K<extra></extra>` });
+  const traces = [dots("Explained losses", "known", COLOR.outdoors, 1),
+                  dots("Heat in", "y", COLOR.pump, whole.map(d => (d.sun == null ? 0.45 : 1)))];
+  if (usable) traces.unshift({ type: "scatter", mode: "lines", x: [lo, hi], y: [line.at(lo), line.at(hi)],
+                               line: { color: COLOR.pump, width: 2 }, hoverinfo: "skip" });
+  const last = whole.at(-1);
+  const layout = {
+    showlegend: false, hovermode: "closest", hoverlabel: HOVER, margin: { t: 10, r: 8, b: 40, l: 44 },
+    paper_bgcolor: COLOR.surface, plot_bgcolor: COLOR.surface,
+    xaxis: { title: { text: "inside − outside, K", font: { size: 12, color: COLOR.muted } }, gridcolor: COLOR.rule,
+             zeroline: false, range: whole.length ? [lo - 1, hi + 1] : undefined },
+    yaxis: { ticksuffix: " kW", gridcolor: COLOR.rule, rangemode: "tozero", zerolinecolor: COLOR.rule },
+    annotations: last ? [{ x: last.x, y: last.y, text: dayLabel(last.day, false), showarrow: false, yshift: 14,
+                           font: { size: 11, color: COLOR.text } }] : [],
+  };
+  Plotly.react(document.getElementById("signature"), traces, layout, { responsive: true, displayModeBar: false });
+}
+
+function tables() {
+  fillTable("daysTable",     // the key columns first: a phone shows only the first few without scrolling
+    ["|Day", "Explained", "Left over", "Heat pump", "Appliances, people", "Sun", "To outdoors", "To ground", "In °C", "Out °C", "COP", "Hours"],
+    [...days].reverse().map(d => ({ className: d.whole ? "" : "partial", cells: [
+      dayLabel(d.day), `${d.share.toFixed(0)}%`, f1(d.left), f1(d.pump), f1(d.appliances), f1(d.sun),
+      f1(d.outdoors), f1(d.ground), f1(d.tIn), f1(d.tOut), d.cop.toFixed(2), d.hours] })));
+  fillTable("partsTable", ["|Part", "W/K", "|Loses to", "m²", "U", "|Source", "|Note"],
+    parts.map(p => ({ className: MEASURED.has(p.to) ? "" : "waiting", cells: [
+      p.name, p.wk.toFixed(1), p.to, p.area ?? "", p.u == null ? "" : p.u.toFixed(2),
+      p.source === "doc" ? "document" : "estimate", p.note] })));
+}
+
+function notes() {
+  const last = days.at(-1), list = [];
+  list.push(last.copLogged
+    ? `Heat pump: its electricity times a COP of ${last.cop.toFixed(2)}, from the Vaillant counters you logged.`
+    : `Heat pump: its electricity times a COP of ${last.cop.toFixed(2)}. That is the default, from the Vaillant counters of ` +
+      `1 to 14 November. Log the "this month" counters now and then to replace it:`);
+  if (!last.copLogged) list.push({ code: 'python3 note.py "counters: heating=253 yield=319"' });
+  list.push("Left over: heat to the two neighbours and to the home above, heat stored in the building, and every error in the other terms.",
+            "Appliances include the hot-water heater. Most of that heat leaves by the drain, so heat in is a few kWh a day too high.",
+            days.every(d => d.sun == null)
+              ? "Sun: no data yet. Add the knmi_hourly.py line to cron (see README)."
+              : "Sun: KNMI publishes about two days late. Until then a day has no sun term (\"?\"), and its left-over is that much too low.",
+            "Pale bars and grey rows: a day with under 23 hours of data, such as today.");
+  document.getElementById("notes").replaceChildren(...list.map(item => {
+    const li = el("li", typeof item === "string" ? item : null);
+    if (item.code) { li.append(el("code", item.code)); li.style.listStyle = "none"; }
+    return li;
+  }));
+}
+
+function render() {
+  if (!days.length) return;
+  tiles(); bars(); signature();
+}
+
+async function load() {
+  const status = document.getElementById("status"), n = Number(document.getElementById("days").value);
+  status.textContent = "Loading…";
+  try {
+    const r = await fetch(`/api/balance?hours=${24 * n}`);
+    if (!r.ok) throw new Error(r.status === 404 ? "the dashboard runs older code: run ~/p1-logger/update.sh" : `HTTP ${r.status}`);
+    const b = await r.json();
+    days = prepare(b); parts = b.parts;
+    if (!days.length) throw new Error("no day has power, room temperatures and outdoor temperature together yet");
+    const now = new Date();
+    status.textContent = `updated ${two(now.getHours())}:${two(now.getMinutes())}`;
+    render(); tables(); notes();
+  } catch (e) {
+    status.textContent = `No balance: ${e.message}`;
+  }
+}
+
+// "Code update / 21 Nov 12:30 UTC": when the code the Pi runs was committed (hover: hash and message).
+fetch("/api/version").then(r => r.json()).then(v => {
+  if (!v.time) return;
+  const d = new Date(v.time * 1000), e = document.getElementById("version");
+  e.append("Code update", document.createElement("br"), `${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })} ` +
+           `${two(d.getUTCHours())}:${two(d.getUTCMinutes())} UTC`);
+  e.title = `${v.commit}: ${v.subject}`;
+}).catch(() => {});
+
+let resizeTimer;
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 250); })
+  .observe(document.getElementById("bars"));
+document.getElementById("days").onchange = load;
+load();
+</script>
+</body>
+</html>

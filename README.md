@@ -13,6 +13,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `room_logger.py` | Grove temperature & humidity sensor (DHT22), one row per minute | service `room-logger` | `room` |
 | `evohome_logger.py` | Every evohome zone's temperature, setpoint and mode, every 5 min (TCC cloud) | service `evohome-logger` | `zones` |
 | `knmi_temp.py` | KNMI Rotterdam air temperature every 10 min (EDR API, free key in `~/.knmi`) | cron, every 10 min | `knmi_temp` |
+| `knmi_hourly.py` | KNMI Rotterdam per hour, no key: sunshine, wind, rain (about 2 days late) | cron, every 6 h | `knmi_hourly` |
 | `compare_temps.py` | One-off check: our sensor vs KNMI Rotterdam, with a chart | by hand | – |
 | `hp_check.py` | Heat pump runs, starts and kWh per day, with an hourly map | by hand | – |
 | `recent.py` | Last hours in steps: power, heat-pump share, room climate, loudness | by hand | – |
@@ -20,7 +21,9 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `deviation.py` | Room minus setpoint per zone: summary and over time | by hand | – |
 | `leadtime.py` | Warm-up lead time per setpoint step-up, with outdoor temperature and heat-pump power | by hand | – |
 | `insights.py` | Loudness vs heat pump, and energy before/after each logged change | by hand | – |
-| `dashboard.py` + `web/` | Web page for the iPad: http://heatpi.lan:8080 (Plotly from a CDN, data as JSON) | service `dashboard` | – |
+| `balance.py` | Heat balance per day: heat in, the losses we can compute, and what is left over | by hand, and in the dashboard | – |
+| `house.py` | The house for the balance: every part that loses heat, its area, U-value and where the heat goes | by hand (prints the table) | – |
+| `dashboard.py` + `web/` | Web pages for the iPad: http://heatpi.lan:8080 (live view) and `/balance.html` (heat balance). Plotly from a CDN, data as JSON | service `dashboard` | – |
 | `status.sh` | All-in-one check: loggers, data freshness, notes, heat pump, last 6 h | by hand | – |
 | `dblocks.py` | Who holds the database's write lock, and for how long (when a logger says "database is locked") | by hand | – |
 | `update.sh` | Pull the latest code from GitHub; restarts only the services whose code changed | by hand | – |
@@ -91,6 +94,23 @@ nano ~/.knmi && chmod 600 ~/.knmi             # paste the EDR API key from devel
 python3 knmi_temp.py --find rotterdam         # station id, expect 0-20000-0-06344
 python3 knmi_temp.py --show
 (crontab -l; echo '*/10 * * * * cd ~/p1-logger && python3 knmi_temp.py >> knmi.log 2>&1') | crontab -
+```
+
+### Heat balance: sunshine, wind and rain from KNMI (no key)
+
+```bash
+python3 knmi_hourly.py                        # first run backfills from Sep 2025 (a few seconds)
+(crontab -l; echo '25 */6 * * * cd ~/p1-logger && python3 knmi_hourly.py >> knmi.log 2>&1') | crontab -
+python3 balance.py --days 7                   # the balance as a table; the page is /balance.html
+python3 house.py                              # the areas and U-values it uses
+```
+
+The balance turns the heat pump's electricity into heat with a COP. Read the two "this month"
+counters on the Vaillant controller now and then, and log them; the balance then uses the measured
+COP between two readings instead of its default:
+
+```bash
+python3 note.py "counters: heating=253 yield=319"
 ```
 
 ## Updating
