@@ -80,9 +80,12 @@ every settings change are in the `events` table (`python3 note.py` lists them).
 ## Dashboard
 
 - **Rooms:** a downstairs panel and a living room panel. Dotted lines are setpoints; hovering shows
-  "Bedroom: 18.5 [19.0]".
+  "Bedroom: 18.5 °C [19.0]". Every hover text carries its unit.
 - **Outdoor:** street dots plus a smoothed curve: local linear regression with Gaussian weights,
-  σ = 0.75 h, on a 10-minute grid. KNMI is a dashed line once logged.
+  σ = 0.75 h, on a 10-minute grid. KNMI Rotterdam is a light blue line (#6da7ec), smoothed the
+  same way. On clear nights the airfield reads about 2 K colder than the street sensors.
+- **Range selector and Refresh:** the status says "Loading" at once and the plots dim until the
+  new data is drawn; the Pi needs a few seconds for several days.
 - **Heat pump L1:** kWh since midnight, back to 0 at 00:00, with each day's total labelled. Tapping
   the title switches to kW. In the 24 h view a pink line shows the same clock time a day earlier.
 - **Technical room:** smoothed temperature (σ = 0.5 h) on the left axis, smoothed noise shaded on

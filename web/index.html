@@ -172,12 +172,12 @@ function toggleHeatPump() {
   render();
 }
 
-// One room: its temperature (hover shows "Bedroom: 18.5 [19.0]", setpoint in brackets) and a
+// One room: its temperature (hover shows "Bedroom: 18.5 °C [19.0]", setpoint in brackets) and a
 // dotted setpoint line that stays out of the hover box.
 function roomTraces(name, z, panel) {
   const color = ROOM_COLOR[name] ?? NEUTRAL, ax = { xaxis: "x" + axis(panel), yaxis: "y" + axis(panel) };
   return [{ ...ax, x: z.time, y: z.temp, customdata: z.setpoint, name, line: { color, width: 2 },
-            visible: shown(name), hovertemplate: `${name}: %{y:.1f} [%{customdata:.1f}]<extra></extra>` },
+            visible: shown(name), hovertemplate: `${name}: %{y:.1f} °C [%{customdata:.1f}]<extra></extra>` },
           { ...ax, x: z.time, y: z.setpoint, name: `${name} setpoint`, hoverinfo: "skip",
             visible: shown(name) && shown("setpoint"), line: { color, width: 1.5, shape: "hv", dash: "dot" } }];
 }
@@ -252,9 +252,10 @@ function render() {
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
     { x: outdoor.time, y: outdoor.temp_c, name: "Street", xaxis: "x3", yaxis: "y3", mode: "markers",
       visible: shown("street"), marker: { color: NEUTRAL, size: 5, opacity: 0.5 },
-      hovertemplate: "Street: %{y:.1f}<extra></extra>" },
-    { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
-      line: { color: KNMI, width: 2 }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
+      hovertemplate: "Street: %{y:.1f} °C<extra></extra>" },
+    // KNMI reports every 10 minutes and jitters; the same smoother as the street line makes the two comparable.
+    { ...smooth(knmi.time, knmi.temp_c), name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
+      line: { color: KNMI, width: 2 }, hovertemplate: "KNMI Rotterdam, smoothed: %{y:.1f} °C<extra></extra>" },
     ...(cumulative ? [
       { x: before.x, y: before.y, name: "1 day earlier", xaxis: "x4", yaxis: "y4",   // empty unless 24 h view
         visible: shown("prior"), line: { color: PRIOR, width: 2 }, hovertemplate: "1 day earlier: %{y:.1f} kWh<extra></extra>" },
@@ -266,7 +267,7 @@ function render() {
         hovertemplate: "L1: %{y:.2f} kW<extra></extra>" }]),
     { ...noiseLine, name: "Noise", xaxis: "x5", yaxis: "y5",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
-      hovertemplate: "Noise: %{y:.1f}<extra></extra>" },
+      hovertemplate: "Noise: %{y:.0f} raw (0-4095)<extra></extra>" },
     { ...smooth(tech.time, tech.temp_c, TECH_SMOOTH_HOURS), name: "Technical room", xaxis: "x5", yaxis: "y6",
       line: { color: NEUTRAL, width: 2 }, hovertemplate: "Technical room: %{y:.1f} °C<extra></extra>" });
 
