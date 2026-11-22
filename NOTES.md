@@ -101,8 +101,12 @@ rain) and the page `/balance.html`.
     explained = losses to outdoors and to the ground, part by part from house.py
     left over = in − explained: the neighbours, heat stored in the building, and every error
 
-- The page shows kWh per day as bars, an energy signature (average power per day against
-  inside − outside) and the tables behind both.
+- The page shows kWh per day as bars, a moving balance (mean power over the last 24 or 6 hours,
+  one point per hour), an energy signature (average power per day against inside − outside) and
+  the tables behind them.
+- First real numbers (21 Nov, a whole day): 50.6 kWh from the heat pump, 5.9 from appliances, 3.0
+  from people; 27.5 kWh explained, so 46 %. The left-over of 32 kWh is 1.3 kW on average. A
+  neighbour and a home above that are both about 8 K colder would take about 0.9 kW of it.
 - Kevin's aim: fit a baseline period, call it 100 %, then see a change to the house (draught
   seals, duct insulation) as new days that fall off the baseline line. Lump as little as possible:
   constants can be fitted, but anything that varies in time must be measured.
@@ -155,7 +159,12 @@ rain) and the page `/balance.html`.
 - The heat pump seems to draw about 3 kW at times (L1 fell from 3.65 to 0.67 kW within a minute).
   The 4 and 6 kW units stop at 2.3 kW, so it is probably the 8 or 10 kW unit: confirm on its plate.
 - Kitchen-size loads (1.2-1.8 kW for under 5 minutes) are on L1 too. The heat-pump rule ignores
-  them because they are short.
+  them because they are short. One of 1.0-1.25 kW runs about 4 minutes at meal times (07:52,
+  12:02): perhaps the combi-oven as a microwave.
+- Two showers gave one heater run of 62.5 minutes (10:08:20 to 11:10:50, +2621 W and −2452 W):
+  2.6 kWh, so about 1.3 kWh a shower. The heater only started 6 minutes after the first shower
+  ended. `balance.py` found 3.0 kWh of hot water for that morning, as the steps predicted.
+- In both heater runs the step down was about 170 W smaller than the step up.
 
 **Next measurements, best first:**
 
@@ -183,6 +192,10 @@ rain) and the page `/balance.html`.
   2026 so far 1.95, 2025 2.12.
 - Log both counters at every curve change, then the change itself: each setting then has its own
   measured COP.
+- 22 Nov 12:57: curve 1.20 -> 1.00 (logged, with the counters just before). The target flow fell
+  from 40 to 37 °C at about 8 °C outdoors. A cold week follows (nights to −2 °C): below about 1 °C
+  outdoors both curves reach the 45 °C maximum, so the week tests whether 45 °C is enough in frost.
+  Next: read the counters after about a week; go down by 0.2 again if every room held its setpoint.
 - Installation flow temperature 43 °C at 4.5 °C outdoors (24 h average). The curve of 1.20 asks for
   about 45 °C there, which is also the set maximum. Warm for floor heating: the installer guide's
   table gives about 3 % better COP for every kelvin less.
@@ -217,8 +230,7 @@ yet: the oven, combi-oven, dishwasher and washing machine would fool the hot-wat
    and whether a return temperature and a flow rate can be read anywhere (the flow temperature can).
 6. Ventilation: the unit's model and its flow setting in m3/h, the length of bare duct in the cold
    cupboard, and the air temperature in one supply vent on a cold day.
-7. Hot-water heater: kW and litres on its plate. And the end of the shower run of 22 Nov in the
-   step check.
+7. Hot-water heater: kW and litres on its plate.
 8. Is the technical room inside the insulation? (The basement floor is about 0.7 m below the
    street at the front: answered by a photo.)
 9. The back windows and doors of the basement: glass type and sizes. (The front windows are
