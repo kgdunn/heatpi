@@ -19,7 +19,6 @@
   #legend button[aria-pressed="false"] { opacity: 0.35; text-decoration: line-through; }   /* hidden */
   #legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
   #legend .dotted { border-top-style: dotted; border-color: #6b6a66; }
-  #legend .dashed { border-top: 2px dashed #5b5a56; }
   #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgba(91,90,86,0.5);
                  vertical-align: middle; margin: 0 6px 0 5px; }
   #legend .group { display: inline-flex; align-items: center; gap: 0 8px; margin-left: 8px; }  /* wraps as one */
@@ -33,7 +32,7 @@
     #status { order: 2; flex-basis: 100%; text-align: right; }
     #legend { order: 3; }
   }
-  #plots { flex: 1; min-height: 0; width: 100%; }
+  #plots { flex: 1; min-height: 0; width: 100%; transition: opacity 0.15s; }
 </style>
 </head>
 <body>
@@ -57,6 +56,7 @@
 const ROOM_COLOR = { "Badkamer": "#2a78d6", "Bedroom": "#eb6834", "Logeer": "#1f9e89", "Living Room": "#b0389b" };
 const UPSTAIRS = new Set(["Living Room"]);
 const NEUTRAL = "#5b5a56", LIGHT = "#a3a29d", PRIOR = "#f0a6c6";   // PRIOR: light pink, a day earlier
+const KNMI = "#6da7ec";                            // light blue: the official station, next to the grey street line
 const HOUR = 3600e3;
 let data = null;                                   // last fetch, reused when the screen rotates
 let view = 0;                                      // bumped by Refresh or a new range: resets any zoom
@@ -235,7 +235,7 @@ function render() {
   // A group label stays on the same line as its keys.
   const group = (label, keys) => `<span class="group"><span>${label}</span>${keys.join("")}</span>`;
   const outdoorKeys = [legendKey("street", "street", `<b class="dot"></b>`)];
-  if (knmi.time.length) outdoorKeys.push(legendKey("knmi", "KNMI Rotterdam", `<i class="dashed"></i>`));
+  if (knmi.time.length) outdoorKeys.push(legendKey("knmi", "KNMI Rotterdam", `<i style="border-color:${KNMI}"></i>`));
   legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`), group("Outdoor:", outdoorKeys));
   if (cumulative && prior.time.length)
     legend.push(group("Heat pump:", [legendKey("prior", "a day earlier", `<i style="border-color:${PRIOR}"></i>`)]));
@@ -254,7 +254,7 @@ function render() {
       visible: shown("street"), marker: { color: NEUTRAL, size: 5, opacity: 0.5 },
       hovertemplate: "Street: %{y:.1f}<extra></extra>" },
     { x: knmi.time, y: knmi.temp_c, name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
-      line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
+      line: { color: KNMI, width: 2 }, hovertemplate: "KNMI Rotterdam: %{y:.1f}<extra></extra>" },
     ...(cumulative ? [
       { x: before.x, y: before.y, name: "1 day earlier", xaxis: "x4", yaxis: "y4",   // empty unless 24 h view
         visible: shown("prior"), line: { color: PRIOR, width: 2 }, hovertemplate: "1 day earlier: %{y:.1f} kWh<extra></extra>" },
@@ -342,7 +342,16 @@ async function load() {
 let resizeTimer;
 new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 250); })
   .observe(document.getElementById("plots"));
-const resetAndLoad = () => { view++; load(); };
+// A new range or Refresh: say so at once and dim the old picture until the new data is in. The Pi
+// needs a few seconds for several days, and without a sign the page seemed not to react.
+const resetAndLoad = async () => {
+  view++;
+  const plots = document.getElementById("plots");
+  document.getElementById("status").textContent = "Loading…";
+  plots.style.opacity = 0.4;
+  await load();
+  plots.style.opacity = 1;
+};
 document.getElementById("hours").onchange = resetAndLoad;
 document.getElementById("refresh").onclick = resetAndLoad;
 load();
