@@ -174,15 +174,24 @@ rain) and the page `/balance.html`.
 **Vaillant controller, read on 22 Nov at 12:29:**
 
 - Environmental yield: 563 kWh this month, 311 last month, 3411 this year, 2075 last year, 5487 in
-  total. Since the reading of 14 Nov that is 244 kWh in 7.9 days, 31 kWh a day (23 a day before,
-  in milder weather). The electricity counter of the same moment is still missing.
+  total. Electricity for heating: 385 kWh this month, 254 last month, 3598 this year, 1860 last
+  year, 5458 in total.
+- **COP since the curve change of 14 Nov: 2.85** (132 kWh electricity, 244 kWh yield in 7.9 days,
+  at about 5 °C outdoors). Before it was 2.26, in milder weather. Per day: 16.8 kWh of electricity
+  for 47.8 kWh of heat, against 18.5 for 41.9 before. Still about 20 % under the guide's rating
+  for these conditions (my estimate: 3.5). Whole months: October 2.22, November so far 2.46;
+  2026 so far 1.95, 2025 2.12.
+- Log both counters at every curve change, then the change itself: each setting then has its own
+  measured COP.
 - Installation flow temperature 43 °C at 4.5 °C outdoors (24 h average). The curve of 1.20 asks for
   about 45 °C there, which is also the set maximum. Warm for floor heating: the installer guide's
   table gives about 3 % better COP for every kelvin less.
-- The room at the controller read 22.0 °C against 20.0 °C desired, on a sunny day.
+- The room at the controller read 22.0 °C against 20.0 °C desired, on a sunny day. "Room temp.
+  mod." is inactive, so the controller does not use the room temperature at all.
+- The heat pump's own flow was 43 °C against a target of 42 °C, so the 10 K buffer offset is not
+  applied. The target fits  desired + 2.55 x (curve x (desired - outdoor))^0.78  within a degree.
 - Back-up heater: allowed for heating only below −5 °C outdoors (bivalence point), so it plays no
-  part in mild weather. Adaptive heat curve: off. Buffer cylinder offset: 10 K (check that it is
-  really not applied: it would cost about a quarter of the COP).
+  part in mild weather. Adaptive heat curve: off. Heating stops above 16 °C outdoors.
 - Advice given: finish tuning the curve before starting a baseline for house experiments, because
   every curve change moves the heat pump's COP and so the baseline.
 
@@ -198,7 +207,7 @@ yet: the oven, combi-oven, dishwasher and washing machine would fool the hot-wat
 
 1. The Vaillant "this month" counters, now and then about weekly: heating kWh and environmental
    yield kWh, read at the same moment. The heat pump is about three quarters of the heat in, and
-   its COP is a guess. (22 Nov: the yield is known, the electricity is not.)
+   its COP is measured only between two readings. (Last reading: 22 Nov, 385 and 563 kWh.)
 2. Surface temperature of both side walls on the living level, the room air, and the kitchen
    ceiling, on a cold evening (an infrared thermometer is enough). Sizes the largest unknown loss.
 3. The home above: on which days is it heated, and what temperature does it fall to in between?
