@@ -53,9 +53,10 @@ On the Pi itself, read only, so the loggers are never blocked:
 | `evohome_logger.py` | service `evohome-logger`, every 10 min, `.venv` (Python 3.13, evohome-async 3.2.2) | `zones` |
 | `room_logger.py` | service `room-logger`, DHT22 on GPIO 12, 1/min | `room` |
 | `loudness_logger.py` | service `loudness-logger`, Grove Base Hat A0 (I2C 0x04), 10 Hz → 1/min | `loudness` |
-| `dashboard.py` + `web/` | service `dashboard`, port 8080, read-only | none |
+| `dashboard.py` + `web/` | service `dashboard`, port 8080, read-only; imports `balance.py` and `house.py` | none |
 | `outdoor_temp.py && street_consensus.py` | cron `15 * * * *` | `street_temp`, `street_air`, `street_consensus` |
 | `knmi_temp.py` | cron every 10 min, once a key exists | `knmi_temp` |
+| `knmi_hourly.py` | cron `25 */6 * * *`, no key | `knmi_hourly` |
 | `note.py "text"` | by hand; `python3 note.py` lists | `events` |
 
 `update.sh` maps logger files to service names: add new services there. `status.sh` is the
@@ -72,6 +73,7 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 | `street_temp` | hourly | Luchtwachters sensors via the RIVM API: `sensor`, `temp_c` (`street_air`: PM and more) |
 | `street_consensus` | hourly | `temp_c` (sun-robust consensus), `n_sensors`, `sun_elev`, `facade_excess` (our sensor de-4190 minus consensus: sun on our facade). Rewritten whole each hour. |
 | `knmi_temp` | 10 min | KNMI station `0-20000-0-06344` (Rotterdam; confirm with `--find rotterdam`), empty until a key exists |
+| `knmi_hourly` | hourly, about 2 days late | KNMI Rotterdam (station 344), validated: `temp_c`, `wind_ms`, `wind_dir`, `rad_wm2` (sunshine on a flat surface), `rain_mm`, `rain_h`. `ts_utc` is the start of the hour. |
 | `events` | by hand | `ts_utc`, `note`: settings changes and happenings. The source of truth for "when did X change". |
 
 ## Data caveats: read before analysing
@@ -103,8 +105,11 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 - SQLite: connect with `timeout=30`, keep write transactions short (`with db:`), and read through
   `mode=ro` URIs.
 - `dashboard.py` uses only the standard library and runs only whitelisted queries (`QUERIES`),
-  computed series (`COMPUTED`, e.g. `energy`) and `/api/version`. `web/index.html` is one file with
-  Plotly 2.35.2 from jsDelivr.
+  computed series (`COMPUTED`, e.g. `energy`, `balance`) and `/api/version`. Each page in `web/`
+  is one file with Plotly 2.35.2 from jsDelivr: `index.html` (live view) and `balance.html`.
+- **Heat balance:** `house.py` holds the house (areas, U-values, where each part loses heat to),
+  `balance.py` the calculation; both use only the standard library because the dashboard imports
+  them. The reasoning and the open questions are in NOTES.md.
 - **Testing the dashboard:** build a mock `p1.sqlite`, run `dashboard.py --port 8092`, and check
   with Playwright at Pixel 7 (412 px) and 1180×820 that there are no page errors, panel titles
   fit, and tick labels don't overlap. Every series is optional: an empty panel says why in its

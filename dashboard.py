@@ -4,8 +4,9 @@
 Open http://heatpi.lan:8080 on any device at home. The page draws its plots in
 the browser with Plotly from a CDN, so the Pi only sends a few kB of data.
 
-    GET /                      -> web/index.html
+    GET /                      -> web/index.html   (live view; web/balance.html is the heat balance)
     GET /api/<series>?hours=24 -> {"time": [...], "<column>": [...], ...}  (local time)
+    GET /api/balance?hours=336 -> the heat balance per day (balance.py)
 
 Usage:  python3 dashboard.py [--port 8080]
 """
@@ -20,6 +21,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
+
+import balance
 
 HERE = Path(__file__).parent
 DB = HERE / "p1.sqlite"
@@ -71,7 +74,8 @@ def energy(hours):
     return out
 
 
-COMPUTED = {"energy": energy}                    # series built in Python rather than in one query
+# Series built in Python rather than in one query.
+COMPUTED = {"energy": energy, "balance": lambda hours: balance.daily(DB, hours)}
 
 
 def version():
