@@ -23,8 +23,8 @@ ZONES = {"Living Room": ("living", 55), "Bedroom": ("basement", 33),
 # Sun: facade direction (degrees from north) -> m2 of "open hole" that lets sunshine in.
 # Hole = window area x glass share x solar factor of the glass x shade. All "est".
 #   back:  living level 9.5 x 0.65 x 0.60 x 0.7 (pergola, trees) + basement 8.0 x 0.65 x 0.60 x 0.4 (balcony above)
-#   front: living level 5.5 x 0.70 x 0.55 x 0.8 (trees)          + basement 3.0 x 0.65 x 0.55 x 0.8
-SUN_HOLES = {225: 3.8, 45: 2.6}
+#   front: living level 5.8 x 0.70 x 0.55 x 0.8 (trees)          + basement 2.0 x 0.55 x 0.55 x 0.8
+SUN_HOLES = {225: 3.8, 45: 2.3}
 
 MEASURED = ("outdoors", "ground")   # other sides with a known temperature; the rest waits for probes
 
@@ -37,15 +37,18 @@ def part(name, group, inside, to, source, note, area=None, u=None, wk=None):
 
 PARTS = [
     part("Front windows, living level", "windows", "living", "outdoors", "est",
-         "vacuum glass (U 0.4, doc) in old frames; area from a photo", area=5.5, u=1.1),
+         "vacuum glass (U 0.4, doc) in old frames; 2 x about 1.15 x 2.5 m, from a photo", area=5.8, u=1.1),
     part("Back windows, living level", "windows", "living", "outdoors", "est",
          "HR++ glass (U 1.1, doc), aluminium spacers, new frames; area from a photo", area=9.5, u=1.5),
-    part("Basement windows and doors", "windows", "basement", "outdoors", "est",
-         "glass type assumed as on the living level; area from the plan", area=11.0, u=1.4),
+    part("Front windows, basement", "windows", "basement", "outdoors", "est",
+         "vacuum glass, also in the arched top lights; old unsealed frames; 2 x about 1.0 x 1.0 m, from a photo",
+         area=2.0, u=1.4),
+    part("Back windows and doors, basement", "windows", "basement", "outdoors", "est",
+         "glass type assumed as on the living level (HR++); area from the plan", area=8.0, u=1.4),
     part("Front and back walls, living level", "walls", "living", "outdoors", "est",
-         "about 100 mm PIR between studs (front: doc)", area=21.0, u=0.28),
+         "about 100 mm PIR between studs (front: doc)", area=20.7, u=0.28),
     part("Front and back walls, basement", "walls", "basement", "outdoors", "doc",
-         "80-100 mm PIR between studs", area=14.0, u=0.28),
+         "80-100 mm PIR between studs; the lowest 0.7 m at the front is below the street", area=15.2, u=0.28),
     part("Ventilation unit", "ventilation", "house", "outdoors", "est",
          "150 m3/h at 85 % heat recovery, both assumed", wk=7.7),
     part("Ventilation ducts, cold cupboard", "ventilation", "house", "outdoors", "est",
@@ -70,11 +73,11 @@ PARTS = [
 
 if __name__ == "__main__":
     total = sum(p["wk"] for p in PARTS)
-    print(f"{'Part':36} {'m2':>5} {'U':>5} {'W/K':>6} {'share':>5}  {'loses to':13} src  note")
+    print(f"{'Part':36} {'m2':>5} {'U':>5} {'W/K':>6} {'share':>6}  {'loses to':13} src  note")
     for p in PARTS:
         size = f"{p['area']:5.1f} {p['u']:5.2f}" if p["area"] else " " * 11
         share = float(f"{100 * p['wk'] / total:.2g}")                   # at most 2 significant figures
-        print(f"{p['name']:36} {size} {p['wk']:6.1f} {share:4g}%  {p['to']:13} {p['source']}  {p['note']}")
+        print(f"{p['name']:36} {size} {p['wk']:6.1f} {share:5g}%  {p['to']:13} {p['source']}  {p['note']}")
     known = sum(p["wk"] for p in PARTS if p["to"] in MEASURED)
     print(f"\n{known:.0f} W/K to outdoors and ground (computed in the balance), "
           f"{total - known:.0f} W/K to neighbours (not measured yet)")
