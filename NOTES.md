@@ -116,8 +116,12 @@ rain) and the page `/balance.html`.
 - A row house: both side walls are shared, and another home sits on top (own meters, heated only
   at times, to be renovated in 2027). We have no roof of our own.
 - Renovated 2024-25: PIR in the front and back walls and in all basement walls, 80 mm PIR under
-  the basement floor, vacuum glass in the old frames at the front, HR++ glass in new frames at the
-  back, glass wool in the living-room part of the ceiling, ventilation with heat recovery.
+  the basement floor, vacuum glass in the old frames at the front (both levels, the arched top
+  lights too), HR++ glass in new frames at the back, glass wool in the living-room part of the
+  ceiling, ventilation with heat recovery.
+- The basement floor is about 0.7 m below the street at the front. The two front basement windows
+  have old, unsealed frames with visible gaps: the first place to try draught seals. Expect a few
+  W/K at most, so a month of baseline before and after, or no visible change at all.
   Untouched: the side walls on the living level (plaster on 10 cm brick) and the kitchen ceiling.
 - About 92 W/K goes to outdoors and the ground. About 193 W/K is coupling to the two neighbours
   and the home above: the model needs those three temperatures more than better weather data.
@@ -182,9 +186,10 @@ rain) and the page `/balance.html`.
    cupboard, and the air temperature in one supply vent on a cold day.
 7. Hot-water heater: kW and litres on its plate, where it stands, plug or fixed wire. And the end
    of the shower run of 22 Nov in the step check.
-8. How far is the basement floor below the street and the garden? Is the technical room inside
-   the insulation?
-9. All window sizes by tape measure, and the glass type of the basement windows and doors.
+8. Is the technical room inside the insulation? (The basement floor is about 0.7 m below the
+   street at the front: answered by a photo.)
+9. The back windows and doors of the basement: glass type and sizes. (The front windows are
+   vacuum glass on both levels; their sizes are read off photos.)
 10. Roughly what temperature do the two neighbours keep?
 11. What stands against the side walls on the living level (fitted cupboards, kitchen units,
     chimney breasts)? It lowers their 72 W/K.
