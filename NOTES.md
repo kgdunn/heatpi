@@ -171,21 +171,45 @@ rain) and the page `/balance.html`.
 5. Wind and rain are stored already. Draughts follow the wind across the facades (its NE-SW part):
    add that term once a baseline exists.
 
+**Vaillant controller, read on 22 Nov at 12:29:**
+
+- Environmental yield: 563 kWh this month, 311 last month, 3411 this year, 2075 last year, 5487 in
+  total. Since the reading of 14 Nov that is 244 kWh in 7.9 days, 31 kWh a day (23 a day before,
+  in milder weather). The electricity counter of the same moment is still missing.
+- Installation flow temperature 43 °C at 4.5 °C outdoors (24 h average). The curve of 1.20 asks for
+  about 45 °C there, which is also the set maximum. Warm for floor heating: the installer guide's
+  table gives about 3 % better COP for every kelvin less.
+- The room at the controller read 22.0 °C against 20.0 °C desired, on a sunny day.
+- Back-up heater: allowed for heating only below −5 °C outdoors (bivalence point), so it plays no
+  part in mild weather. Adaptive heat curve: off. Buffer cylinder offset: 10 K (check that it is
+  really not applied: it would cost about a quarter of the COP).
+- Advice given: finish tuning the curve before starting a baseline for house experiments, because
+  every curve change moves the heat pump's COP and so the baseline.
+
+**Electricity groups (main board, list of 22 Nov):** 1 hall, toilet, front room, basement hall;
+2 basement sockets, long side; 3 garden, pump, back of the basement, bathroom, shed (nothing in the
+shed); 4 washing machine; 5 kitchen, wall spots, dining room; 6 Quooker; 7 oven; 8 combi-oven;
+9 dishwasher; 10 hob. A three-phase sub-board in the technical room feeds the heat pump (B16) and
+the hot-water heater (C16, fixed wire through an isolator switch: no plug-in meter possible).
+There is no car charger, air conditioner or dehumidifier. The phase of each group is not known
+yet: the oven, combi-oven, dishwasher and washing machine would fool the hot-water rule if on L1.
+
 **Open questions for Kevin, most useful first** (remove one when it is answered):
 
 1. The Vaillant "this month" counters, now and then about weekly: heating kWh and environmental
-   yield kWh. The heat pump is about three quarters of the heat in, and its COP is a guess.
+   yield kWh, read at the same moment. The heat pump is about three quarters of the heat in, and
+   its COP is a guess. (22 Nov: the yield is known, the electricity is not.)
 2. Surface temperature of both side walls on the living level, the room air, and the kitchen
    ceiling, on a cold evening (an infrared thermometer is enough). Sizes the largest unknown loss.
 3. The home above: on which days is it heated, and what temperature does it fall to in between?
-4. What is on L1 besides the heat pump and the hot-water heater? The fuse-box labels per phase.
-   And is any electricity used outside the house (car charger, shed, garden)?
+4. Which phase are the oven, combi-oven, dishwasher and washing machine on? Run each and look
+   at the steps per phase. (The groups themselves are listed above.)
 5. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
-   and whether the controller shows flow temperature, return temperature and flow rate live.
+   and whether a return temperature and a flow rate can be read anywhere (the flow temperature can).
 6. Ventilation: the unit's model and its flow setting in m3/h, the length of bare duct in the cold
    cupboard, and the air temperature in one supply vent on a cold day.
-7. Hot-water heater: kW and litres on its plate, where it stands, plug or fixed wire. And the end
-   of the shower run of 22 Nov in the step check.
+7. Hot-water heater: kW and litres on its plate. And the end of the shower run of 22 Nov in the
+   step check.
 8. Is the technical room inside the insulation? (The basement floor is about 0.7 m below the
    street at the front: answered by a photo.)
 9. The back windows and doors of the basement: glass type and sizes. (The front windows are
