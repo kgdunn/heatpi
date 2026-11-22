@@ -9,7 +9,7 @@
   /* Colours: one per term, checked for colour-blind separation between neighbours in the stack.
      Grey is the part nobody has explained yet. */
   :root { --surface: #fcfcfb; --text: #1a1a19; --text-2: #52514e; --muted: #6b6a66; --rule: #e4e3df;
-          --pump: #eb6834; --appliances: #6250d6; --sun: #eda100; --outdoors: #2a78d6; --ground: #1baf7a; --left: #a3a29d; }
+          --pump: #eb6834; --appliances: #6250d6; --sun: #eda100; --outdoors: #2a78d6; --ground: #1baf7a; --left: #8a8985; }
   body { margin: 0; font: 15px/1.4 -apple-system, system-ui, sans-serif; background: var(--surface); color: var(--text); }
   header { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; padding: 8px 16px 6px; }
   h1 { font-size: 17px; margin: 0; }
@@ -61,6 +61,10 @@
     <option value="14" selected>14 days</option>
     <option value="31">31 days</option>
   </select>
+  <select id="window" aria-label="Moving window">
+    <option value="24" selected>24 h window</option>
+    <option value="6">6 h window</option>
+  </select>
   <a href="/">Live view</a>
   <span id="status"></span>
   <div id="version"></div>
@@ -82,6 +86,15 @@
     <span><i style="background:var(--left)"></i>left over</span>
   </div>
   <div id="bars" class="chart" role="img" aria-label="Stacked bars per day: heat in above zero, heat out below. The table below holds the same numbers."></div>
+
+  <h2>Moving balance <small>kW, one point per hour</small></h2>
+  <p id="movingNote"></p>
+  <div class="legend">
+    <span><i class="line" style="border-color:var(--pump)"></i>heat in</span>
+    <span><i class="line" style="border-color:var(--outdoors)"></i>explained losses</span>
+    <span><i class="line" style="border-color:var(--left)"></i>left over</span>
+  </div>
+  <div id="moving" class="chart" role="img" aria-label="Lines per hour: heat in, explained losses and the left-over, each as the mean power over the moving window."></div>
 
   <h2>Energy signature <small>one dot per whole day</small></h2>
   <p id="signatureNote"></p>
@@ -108,13 +121,15 @@
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const COLOR = Object.fromEntries(["pump", "appliances", "sun", "outdoors", "ground", "left", "surface", "muted", "rule", "text"]
   .map(k => [k, css("--" + k)]));
-const DAY = 864e5;
+const DAY = 864e5, HOUR = 36e5;
 const HOVER = { bgcolor: "#ffffff", bordercolor: COLOR.rule, font: { color: COLOR.text }, align: "left" };
 const two = n => String(n).padStart(2, "0");
 const dayLabel = (day, weekday = true) => new Date(day + "T12:00").toLocaleDateString("en-GB",
   { weekday: weekday ? "short" : undefined, day: "numeric", month: "short" });
 const f1 = v => (v == null ? "?" : v.toFixed(1));
-let days = [], parts = [];
+const toLocal = ms => { const d = new Date(ms);
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
+let days = [], parts = [], hourly = null;
 
 // One object per day. "Explained" = losses to outdoors and to the ground; "left" = the rest of the heat in.
 function prepare(b) {
@@ -212,6 +227,47 @@ function bars() {
   Plotly.react(div, traces, layout, { responsive: true, displayModeBar: false });
 }
 
+// Moving balance: for every hour, the mean power over the window that ends with that hour. It shows
+// how the balance moves within a day. A 24 h window hides the daily rhythm (sun, showers, cooking);
+// a 6 h window shows it, and also heat going into and out of the building's mass.
+function movingBalance() {
+  const span = Number(document.getElementById("window").value), note = document.getElementById("movingNote");
+  const t = (hourly?.time ?? []).map(s => new Date(s.replace(" ", "T")).getTime());
+  const x = [], heatIn = [], explained = [], left = [], extra = [], noSun = [];
+  let lo = 0;
+  t.forEach((start, i) => {
+    while (t[lo] <= start - span * HOUR) lo++;                           // hours that start inside the window
+    const n = i - lo + 1, mean = key => hourly[key].slice(lo, i + 1).reduce((sum, v) => sum + v, 0) / n;
+    if (n < 0.8 * span) return;                                          // too many hours missing
+    const a = mean("heat_in"), b = mean("explained");                    // kWh per hour = kW
+    x.push(toLocal(start + HOUR)); heatIn.push(a); explained.push(b); left.push(a - b);
+    extra.push([100 * b / a, mean("t_out")]); noSun.push(hourly.sun.slice(lo, i + 1).includes(false));
+  });
+  const last = x.length - 1;
+  note.textContent = !hourly ? "The dashboard runs older code: run ~/p1-logger/update.sh."
+    : last < 0 ? `Needs ${Math.ceil(0.8 * span)} hours of data inside a ${span}-hour window.`
+    : `Each point is the mean over the ${span} hours before it. Latest: ${heatIn[last].toFixed(2)} kW in, ` +
+      `${explained[last].toFixed(2)} kW explained (${extra[last][0].toFixed(0)}%), ${left[last].toFixed(2)} kW left over.`;
+  const line = (name, y, color, template) => ({ type: "scatter", mode: "lines", name, x, y, customdata: extra,
+    line: { color, width: 2 }, hovertemplate: `${name}: %{y:.2f} kW${template ?? ""}<extra></extra>` });
+  const traces = [line("Heat in", heatIn, COLOR.pump), line("Left over", left, COLOR.left),
+                  line("Explained losses", explained, COLOR.outdoors, " (%{customdata[0]:.0f}%), outdoors %{customdata[1]:.1f} °C")];
+  const from = noSun.indexOf(true), div = document.getElementById("moving");
+  const layout = {
+    showlegend: false, hovermode: "x unified", hoverlabel: HOVER, margin: { t: 18, r: 8, b: 40, l: 44 },
+    paper_bgcolor: COLOR.surface, plot_bgcolor: COLOR.surface,
+    xaxis: { type: "date", tickformat: "%-d %b<br>%H:%M", hoverformat: "%a %-d %b %H:%M", tickangle: 0,
+             nticks: Math.max(2, Math.floor((div.clientWidth - 52) / 70)), showgrid: false, linecolor: COLOR.rule },
+    yaxis: { ticksuffix: " kW", gridcolor: COLOR.rule, rangemode: "tozero", zerolinecolor: COLOR.muted, fixedrange: true },
+    // Hours KNMI has not published yet have no sun in "heat in": that stretch gets a grey band.
+    shapes: from < 0 ? [] : [{ type: "rect", xref: "x", yref: "paper", x0: x[from], x1: x[last], y0: 0, y1: 1,
+                               fillcolor: COLOR.rule, opacity: 0.45, line: { width: 0 }, layer: "below" }],
+    annotations: from < 0 ? [] : [{ xref: "x", yref: "paper", x: x[last], y: 1, xanchor: "right", yanchor: "bottom",
+                                    text: "grey band: no sun data yet", showarrow: false, font: { size: 11, color: COLOR.muted } }],
+  };
+  Plotly.react(div, traces, layout, { responsive: true, displayModeBar: false });
+}
+
 // Least squares: y = a + b·x.
 function fitLine(points) {
   const n = points.length, mx = points.reduce((s, p) => s + p.x, 0) / n, my = points.reduce((s, p) => s + p.y, 0) / n;
@@ -300,7 +356,7 @@ function notes() {
 
 function render() {
   if (!days.length) return;
-  tiles(); bars(); signature();
+  tiles(); bars(); movingBalance(); signature();
 }
 
 async function load() {
@@ -310,7 +366,7 @@ async function load() {
     const r = await fetch(`/api/balance?hours=${24 * n}`);
     if (!r.ok) throw new Error(r.status === 404 ? "the dashboard runs older code: run ~/p1-logger/update.sh" : `HTTP ${r.status}`);
     const b = await r.json();
-    days = prepare(b); parts = b.parts;
+    days = prepare(b); parts = b.parts; hourly = b.hourly;
     if (!days.length) throw new Error("no day has power, room temperatures and outdoor temperature together yet");
     const now = new Date();
     status.textContent = `updated ${two(now.getHours())}:${two(now.getMinutes())}`;
@@ -333,7 +389,9 @@ let resizeTimer;
 new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 250); })
   .observe(document.getElementById("bars"));
 document.getElementById("days").onchange = load;
+document.getElementById("window").onchange = render;
 load();
+setInterval(load, 15 * 60 * 1000);   // a new hour of the balance arrives every hour
 </script>
 </body>
 </html>

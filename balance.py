@@ -219,11 +219,12 @@ def hourly(db_path, since):
 
 def daily(db_path, hours):
     """Per local day, as columns: kWh for each term, the left-over, temperatures and coverage.
-    `sun` is None on days KNMI has not published yet; such a day's left-over still holds the sun."""
+    `sun` is None on days KNMI has not published yet; such a day's left-over still holds the sun.
+    `hourly` holds heat in and explained losses per hour, for a moving window."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     since = since.astimezone(LOCAL).replace(hour=0, minute=0, second=0, microsecond=0)   # whole days
-    days = defaultdict(list)
-    for row in hourly(db_path, since.astimezone(timezone.utc).isoformat()):
+    days, by_hour = defaultdict(list), hourly(db_path, since.astimezone(timezone.utc).isoformat())
+    for row in by_hour:
         days[row["when"].astimezone(LOCAL).strftime("%Y-%m-%d")].append(row)
 
     out = {key: [] for key in ("day", "hours", "t_in", "t_out", "cop", "cop_logged",
@@ -242,6 +243,13 @@ def daily(db_path, hours):
             out[key].append(value)
         out["left_over"].append(round(sum(sums[k] or 0 for k in IN) - sum(sums[k] for k in OUT), 2))
     out["parts"] = house.PARTS
+    out["hourly"] = {                                         # for the moving window on the page; kWh in the hour
+        "time": [row["when"].astimezone(LOCAL).strftime("%Y-%m-%d %H:%M") for row in by_hour],
+        "heat_in": [round(sum(row[k] or 0 for k in IN), 3) for row in by_hour],
+        "explained": [round(sum(row[k] for k in OUT), 3) for row in by_hour],
+        "t_out": [round(row["t_out"], 2) for row in by_hour],
+        "sun": [row["sun"] is not None for row in by_hour],   # False: KNMI has not published this hour yet
+    }
     return out
 
 
