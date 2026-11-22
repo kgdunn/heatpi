@@ -135,12 +135,13 @@ function el(tag, text, className) {
   return e;
 }
 // A table with clickable column headings: the first tap sorts numbers from large to small and text from
-// A to Z, the next tap reverses. columns: [{label, text, show}]; `show` turns a value into what is printed.
+// A to Z, the next tap reverses. columns: [{label, text, show, empty}]; `show` turns a value into what is
+// printed, `empty` is printed for a missing value.
 // rows: [{cells: [raw values], className, bar: {width (0-1), color}}]. `foot` is one row that stays last.
 const sorting = {};                                // table id -> {column, descending}
 function fillTable(id, columns, rows, foot) {
   const table = document.getElementById(id), sort = sorting[id];
-  const print = (c, v) => (v == null ? "" : c.show ? c.show(v) : v);
+  const print = (c, v) => (v == null ? c.empty ?? "" : c.show ? c.show(v) : v);
   const ordered = !sort ? rows : [...rows].sort((x, y) => {
     const a = x.cells[sort.column], b = y.cells[sort.column];
     if (a == null || b == null) return (a == null) - (b == null);              // empty cells last
@@ -258,7 +259,7 @@ function tables() {
   const pct = v => `${v.toFixed(0)}%`, kwh = { show: f1 };
   fillTable("daysTable",     // the key columns first: a phone shows only the first few without scrolling
     [{ label: "Day", text: true, show: dayLabel }, { label: "Explained", show: pct }, { label: "Left over", ...kwh },
-     { label: "Heat pump", ...kwh }, { label: "Appliances, people", ...kwh }, { label: "Sun", ...kwh },
+     { label: "Heat pump", ...kwh }, { label: "Appliances, people", ...kwh }, { label: "Sun", ...kwh, empty: "?" },
      { label: "To outdoors", ...kwh }, { label: "To ground", ...kwh }, { label: "Hot water", ...kwh },
      { label: "In °C", ...kwh }, { label: "Out °C", ...kwh }, { label: "COP", show: v => v.toFixed(2) }, { label: "Hours" }],
     [...days].reverse().map(d => ({ className: d.whole ? "" : "partial", cells: [
