@@ -170,6 +170,8 @@ rain) and the page `/balance.html`.
   2.6 kWh, so about 1.3 kWh a shower. The heater only started 6 minutes after the first shower
   ended. `balance.py` found 3.0 kWh of hot water for that morning, as the steps predicted.
 - In both heater runs the step down was about 170 W smaller than the step up.
+- The Quooker tops itself up for 10 s every 38 minutes (1.6 kW on L2): about 7 W on average.
+- `steps.py` lists such jumps per phase and pairs them into appliance runs.
 
 **Next measurements, best first:**
 
@@ -230,15 +232,19 @@ There is no car charger, air conditioner or dehumidifier.
 **Infrared readings of the side walls, living level (22 Nov 23:45 and 23 Nov, one thermometer):**
 
 - NW wall 15 °C at eight spots, 14-14.5 °C at two near a cold bridge. SE wall 18 °C. Room 18.5-19 °C.
-  Outdoors 1-2 °C.
+  Outdoors 2 °C in the evening and −1 °C in the morning (street sensors).
 - Heat into the NW wall = 7.7 W/m²K x 30 m² x (room − surface) = about 0.85 kW (0.65-1.05). The
   two walls differ by 3 K on the same instrument, which alone gives 0.7 kW.
-- For 10 cm of brick (U 2.4) to pass that, the house behind it is at about 7-8 °C: a third of the
-  way from outdoors to us. So the wall acts like 45-50 W/K straight to outdoors, more than all the
-  windows together (35 W/K). About €250 a heating season at COP 3.
+- For 10 cm of brick (U 2.4) to pass that, the house behind it is at about 7-8 °C: 0.40 of the
+  way from outdoors to us, in both readings. So the wall acts like 44 W/K straight to outdoors,
+  more than all the windows together (35 W/K). About €250 a heating season at COP 3.
 - The SE wall reads 0.5-1 K under the room: at most 0.3 kW, within the thermometer's error.
-- `house.ESTIMATED = {"neighbour NW": 0.35}` puts this into the balance as an estimated term
+- `house.ESTIMATED = {"neighbour NW": 0.40}` puts this into the balance as an estimated term
   ("to the NW neighbour"). A probe on the wall should replace it.
+
+**A free cooling test, 22 Nov:** after a sunny afternoon the living room stood at 22.5 °C at
+15:00. With the heat pump off for 11 hours it coasted down to 18 °C by midnight, at 5 to 2 °C
+outdoors. Use this decay for the building's thermal mass in the hourly model.
 
 **Open questions for Kevin, most useful first** (remove one when it is answered):
 
@@ -247,8 +253,8 @@ There is no car charger, air conditioner or dehumidifier.
    should read near room temperature). The side walls of the living level are done.
 2. The home above: is it heated this week, what does it fall to when empty, and on which days do
    guests come and go?
-3. Does the living room hold its setpoint in this cold week (curve 1.00, 45 °C maximum)? Do any
-   rooms have a lower night setting in evohome?
+3. Does the living room hold its day setpoint on the cold mornings of this week (curve 1.00,
+   45 °C maximum)? At night it held 18 °C at −1 °C outdoors (23 Nov). evohome has night set-backs.
 4. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
 5. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at

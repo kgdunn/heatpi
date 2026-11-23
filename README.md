@@ -16,6 +16,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `knmi_hourly.py` | KNMI Rotterdam per hour, no key: sunshine, wind, rain (about 2 days late) | cron, every 6 h | `knmi_hourly` |
 | `compare_temps.py` | One-off check: our sensor vs KNMI Rotterdam, with a chart | by hand | – |
 | `hp_check.py` | Heat pump runs, starts and kWh per day, with an hourly map | by hand | – |
+| `steps.py` | Sudden jumps in power per phase, and matching pairs as appliance runs: which appliance is on which phase | by hand | – |
 | `recent.py` | Last hours in steps: power, heat-pump share, room climate, loudness | by hand | – |
 | `note.py` | Log a settings change (`python3 note.py "..."`), or list them | by hand | `events` |
 | `deviation.py` | Room minus setpoint per zone: summary and over time | by hand | – |

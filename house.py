@@ -28,10 +28,11 @@ SUN_HOLES = {225: 3.8, 45: 2.3}
 
 MEASURED = ("outdoors", "ground")   # other sides with a known temperature
 # Other sides without a sensor yet: where their temperature sits on the way from outdoors (0) to our
-# living level (1). Infrared readings of 22 and 23 Nov 2026 gave the NW wall at 15 °C with the room at
-# 18-19 °C and the SE wall at 18 °C, at 1-2 °C outdoors: about 7-8 °C behind the brick, so 0.3 to 0.4.
-# Replace by a probe on the wall. The SE neighbour and the home above stay unknown.
-ESTIMATED = {"neighbour NW": 0.35}
+# living level (1). Infrared readings of 22 and 23 Nov 2026 gave the NW wall 3 K (evening, 2 °C outdoors)
+# and 3.75 K (morning, -1 °C outdoors) under the room. With 7.7 W/m2K into the wall and U 2.4 through
+# it, the house behind it sat at 8.4 and 6.7 °C: 0.40 and 0.39 of the way. Replace by a probe on the
+# wall. The SE neighbour and the home above stay unknown.
+ESTIMATED = {"neighbour NW": 0.40}
 
 
 def part(name, group, inside, to, source, note, area=None, u=None, wk=None):
