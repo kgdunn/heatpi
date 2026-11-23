@@ -242,6 +242,20 @@ There is no car charger, air conditioner or dehumidifier.
 - `house.ESTIMATED = {"neighbour NW": 0.40}` puts this into the balance as an estimated term
   ("to the NW neighbour"). A probe on the wall should replace it.
 
+**Real numbers, 21 to 23 Nov** (COP 2.85, NW neighbour at 0.40, live sunshine):
+
+- Explained: 67 % on the 21st, 86 % on the 22nd, 60 % in the first 7 hours of the 23rd. All 54 hours
+  together: 150 kWh in, 110 kWh explained (73 %), 0.74 kW left over on average.
+- The swing between days is heat stored in floors and walls. On the 22nd sun (9.4 kWh) and stored
+  heat carried the house while the heat pump was off for 11 hours; in the night after, the heat
+  pump refilled the store at 3.6 kW of heat. Read several days together: the page's headline and
+  the last line of `balance.py` do that, and the moving balance has a 72 h window.
+- From that coast-down the store is very roughly 6 kWh per kelvin of room temperature (my estimate,
+  easily ±50 %). Floor temperatures are not measured, so a storage term has to wait for flow and
+  return temperatures.
+- The 0.7 kW still left over is the right size for the home above (37 W/K), the SE wall (at most
+  0.3 kW) and the errors in U-values and COP.
+
 **A free cooling test, 22 Nov:** after a sunny afternoon the living room stood at 22.5 °C at
 15:00. With the heat pump off for 11 hours it coasted down to 18 °C by midnight, at 5 to 2 °C
 outdoors. Use this decay for the building's thermal mass in the hourly model.
