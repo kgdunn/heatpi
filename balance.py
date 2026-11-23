@@ -3,6 +3,7 @@
 
     in        = heat pump + appliances + people + sun
     explained = every part in house.py whose other side has a known temperature (outdoors, ground)
+                or an estimated one (house.ESTIMATED: the NW neighbour, from spot readings of the wall)
     left over = in - explained: heat to the neighbours, heat stored in the building, and every error
 
 How each term is made, hour by hour:
@@ -39,7 +40,7 @@ EXTRA_W, MIN_RUN = 400, 10            # heat pump = this many watts above quiet,
 HEATER_W = (2200, 2900)               # hot-water heater: one step of this size on L1 (seen: 2.4-2.6 kW)
 HEATER_MIN, HEATER_MAX = 5 * 60, 4 * 3600   # seconds a heater run lasts: longer than a kettle, shorter than a lost step
 IN = ("heat_pump", "appliances", "people", "sun")
-OUT = ("windows", "walls", "ventilation", "draughts", "ground")
+OUT = ("windows", "walls", "ventilation", "draughts", "ground", "neighbour_nw")
 HOURLY = "CAST(strftime('%s', substr(ts_utc, 1, 13) || ':00') AS INTEGER) / 3600"   # hours since 1970
 # Jumps on L1 between two readings at most 30 s apart: (second, watts up or down).
 STEPS = """SELECT t, step FROM (
@@ -217,8 +218,10 @@ def hourly(db_path, since):
             noon = when + timedelta(minutes=30)               # the middle of the hour
             row["sun"] = sum(hole * on_facade(sunshine[hour], noon, facing)
                              for facing, hole in house.SUN_HOLES.items()) / 1000
+        for name, share in house.ESTIMATED.items():           # a side without a sensor: part of the way to us
+            other[name] = other["outdoors"] + share * (temp["living"] - other["outdoors"])
         for part in house.PARTS:
-            if part["to"] in house.MEASURED:
+            if part["to"] in other:
                 row[part["group"]] += part["wk"] * (temp[part["inside"]] - other[part["to"]]) / 1000
         out.append(row)
     return out
@@ -249,7 +252,7 @@ def daily(db_path, hours):
         for key, value in sums.items():
             out[key].append(value)
         out["left_over"].append(round(sum(sums[k] or 0 for k in IN) - sum(sums[k] for k in OUT), 2))
-    out["parts"] = house.PARTS
+    out["parts"], out["estimated"] = house.PARTS, house.ESTIMATED
     out["hourly"] = {                                         # for the moving window on the page; kWh in the hour
         "time": [row["when"].astimezone(LOCAL).strftime("%Y-%m-%d %H:%M") for row in by_hour],
         "heat_in": [round(sum(row[k] or 0 for k in IN), 3) for row in by_hour],
@@ -269,9 +272,11 @@ def main():
     if not b["day"]:
         raise SystemExit("No day has power, room temperatures and outdoor temperature together yet.")
     print("kWh per day. in: heat pump, appliances, people, sun.  out: the parts with a known other side.")
-    print("hotw: electricity of the hot-water heater; it leaves by the drain, so it is in neither.\n")
+    print("nbNW: to the NW neighbour, an estimate.  hotw: the hot-water heater's electricity; it leaves by the")
+    print("drain, so it is in neither.\n")
     print(f"{'day':10} {'h':>2} {'in°C':>5} {'out°C':>5} {'COP':>4} | {'pump':>5} {'appl':>5} {'ppl':>4} {'sun':>4} |"
-          f" {'windw':>5} {'walls':>5} {'vent':>5} {'drght':>5} {'grnd':>5} | {'left':>5} {'expl':>5} | {'hotw':>4}")
+          f" {'windw':>5} {'walls':>5} {'vent':>5} {'drght':>5} {'grnd':>5} {'nbNW':>5} | {'left':>5} {'expl':>5} |"
+          f" {'hotw':>4}")
     for i, day in enumerate(b["day"]):
         heat_in = sum(b[k][i] or 0 for k in IN)
         explained = sum(b[k][i] for k in OUT)
