@@ -130,8 +130,9 @@ rain) and the page `/balance.html`.
   have old, unsealed frames with visible gaps: the first place to try draught seals. Expect a few
   W/K at most, so a month of baseline before and after, or no visible change at all.
   Untouched: the side walls on the living level (plaster on 10 cm brick) and the kitchen ceiling.
-- About 92 W/K goes to outdoors and the ground. About 193 W/K is coupling to the two neighbours
+- About 91 W/K goes to outdoors and the ground. About 193 W/K is coupling to the two neighbours
   and the home above: the model needs those three temperatures more than better weather data.
+  The NW neighbour's is estimated since 23 Nov (see the infrared readings below).
 - The ventilation unit sits in a cold cupboard in the home above, with bare ducts. Insulating the
   supply and extract ducts is the first fix to test: measure the recovery at a supply vent,
   (supply − outdoor) / (room − outdoor), before and after.
@@ -226,31 +227,48 @@ shed); 4 washing machine; 5 kitchen, wall spots, dining room; 6 Quooker; 7 oven;
 the hot-water heater (C16, fixed wire through an isolator switch: no plug-in meter possible).
 There is no car charger, air conditioner or dehumidifier.
 
+**Infrared readings of the side walls, living level (22 Nov 23:45 and 23 Nov, one thermometer):**
+
+- NW wall 15 °C at eight spots, 14-14.5 °C at two near a cold bridge. SE wall 18 °C. Room 18.5-19 °C.
+  Outdoors 1-2 °C.
+- Heat into the NW wall = 7.7 W/m²K x 30 m² x (room − surface) = about 0.85 kW (0.65-1.05). The
+  two walls differ by 3 K on the same instrument, which alone gives 0.7 kW.
+- For 10 cm of brick (U 2.4) to pass that, the house behind it is at about 7-8 °C: a third of the
+  way from outdoors to us. So the wall acts like 45-50 W/K straight to outdoors, more than all the
+  windows together (35 W/K). About €250 a heating season at COP 3.
+- The SE wall reads 0.5-1 K under the room: at most 0.3 kW, within the thermometer's error.
+- `house.ESTIMATED = {"neighbour NW": 0.35}` puts this into the balance as an estimated term
+  ("to the NW neighbour"). A probe on the wall should replace it.
+
 **Open questions for Kevin, most useful first** (remove one when it is answered):
 
-1. The Vaillant "this month" counters, now and then about weekly: heating kWh and environmental
-   yield kWh, read at the same moment. The heat pump is about three quarters of the heat in, and
-   its COP is measured only between two readings. (Last reading: 22 Nov, 385 and 563 kWh.)
-2. Surface temperature of both side walls on the living level, the room air, and the kitchen
-   ceiling, on a cold evening (an infrared thermometer is enough). Sizes the largest unknown loss.
-3. The home above: on which days is it heated, and what temperature does it fall to in between?
-4. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
+1. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
+   and the living-room ceiling (the home above), and the NW wall in the basement (insulated: it
+   should read near room temperature). The side walls of the living level are done.
+2. The home above: is it heated this week, what does it fall to when empty, and on which days do
+   guests come and go?
+3. Does the living room hold its setpoint in this cold week (curve 1.00, 45 °C maximum)? Do any
+   rooms have a lower night setting in evohome?
+4. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
+   temperature at that moment.
+5. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
    the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
-5. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
+6. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
+   cupboard.
+7. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
    and whether a return temperature and a flow rate can be read anywhere (the flow temperature can).
-6. Ventilation: the unit's model and its flow setting in m3/h, the length of bare duct in the cold
-   cupboard, and the air temperature in one supply vent on a cold day.
-7. Hot-water heater: kW and litres on its plate.
-8. Is the technical room inside the insulation? (The basement floor is about 0.7 m below the
-   street at the front: answered by a photo.)
-9. The back windows and doors of the basement: glass type and sizes. (The front windows are
-   vacuum glass on both levels; their sizes are read off photos.)
-10. Roughly what temperature do the two neighbours keep?
-11. What stands against the side walls on the living level (fitted cupboards, kitchen units,
-    chimney breasts)? It lowers their 72 W/K.
-12. In winter, from when to when does direct sun reach the back windows?
-13. Decisions: the eBUS adapter, the probes, and a cable route from the technical room to the
+8. Is the technical room inside the insulation?
+9. The back windows and doors of the basement: glass type and sizes.
+10. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
+    chimney breast)? It covers part of the 30 m².
+11. In winter, from when to when does direct sun reach the back windows?
+12. Hot-water heater: the litres on its plate.
+13. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
+    minutes at meal times?
+14. Decisions: the eBUS adapter, the probes, and a cable route from the technical room to the
     living level and the home above.
+15. Recurring: both Vaillant counters about once a week and before every curve change (last
+    reading: 22 Nov, 385 and 563 kWh).
 
 **KNMI hourly API:** in `start=YYYYMMDDHH&end=YYYYMMDDHH` the hour is a range within each day, not
 a moment. Always ask for hours 01 to 24.

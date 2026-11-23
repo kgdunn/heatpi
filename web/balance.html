@@ -9,7 +9,7 @@
   /* Colours: one per term, checked for colour-blind separation between neighbours in the stack.
      Grey is the part nobody has explained yet. */
   :root { --surface: #fcfcfb; --text: #1a1a19; --text-2: #52514e; --muted: #6b6a66; --rule: #e4e3df;
-          --pump: #eb6834; --appliances: #6250d6; --sun: #eda100; --outdoors: #2a78d6; --ground: #1baf7a; --left: #8a8985; }
+          --pump: #eb6834; --appliances: #6250d6; --sun: #eda100; --outdoors: #2a78d6; --ground: #1baf7a; --neighbour: #e87ba4; --left: #8a8985; }
   body { margin: 0; font: 15px/1.4 -apple-system, system-ui, sans-serif; background: var(--surface); color: var(--text); }
   header { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; padding: 8px 16px 6px; }
   h1 { font-size: 17px; margin: 0; }
@@ -81,8 +81,9 @@
     <span><i style="background:var(--appliances)"></i>appliances and people</span>
     <span><i style="background:var(--sun)"></i>sun</span>
     <span><b>Out:</b></span>
-    <span><i style="background:var(--outdoors)"></i>to outdoors</span>
     <span><i style="background:var(--ground)"></i>to the ground</span>
+    <span><i style="background:var(--outdoors)"></i>to outdoors</span>
+    <span><i style="background:var(--neighbour)"></i>to the NW neighbour (estimate)</span>
     <span><i style="background:var(--left)"></i>left over</span>
   </div>
   <div id="bars" class="chart" role="img" aria-label="Stacked bars per day: heat in above zero, heat out below. The table below holds the same numbers."></div>
@@ -113,13 +114,14 @@
 
   <h2>The house <small>from house.py</small></h2>
   <p>Each part loses W/K × (inside − other side). The bar shows its share of the total: blue to outdoors, green to
-     the ground, grey to a side whose temperature is not measured yet. Tap a column heading to sort.</p>
+     the ground, pink to the NW neighbour (estimated), grey to a side whose temperature is not known yet. Tap a
+     column heading to sort.</p>
   <div class="scroll"><table id="partsTable"></table></div>
 </main>
 
 <script>
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const COLOR = Object.fromEntries(["pump", "appliances", "sun", "outdoors", "ground", "left", "surface", "muted", "rule", "text"]
+const COLOR = Object.fromEntries(["pump", "appliances", "sun", "outdoors", "ground", "neighbour", "left", "surface", "muted", "rule", "text"]
   .map(k => [k, css("--" + k)]));
 const DAY = 864e5, HOUR = 36e5;
 const HOVER = { bgcolor: "#ffffff", bordercolor: COLOR.rule, font: { color: COLOR.text }, align: "left" };
@@ -129,16 +131,18 @@ const dayLabel = (day, weekday = true) => new Date(day + "T12:00").toLocaleDateS
 const f1 = v => (v == null ? "?" : v.toFixed(1));
 const toLocal = ms => { const d = new Date(ms);
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
-let days = [], parts = [], hourly = null;
+let days = [], parts = [], hourly = null, estimated = {};
 
-// One object per day. "Explained" = losses to outdoors and to the ground; "left" = the rest of the heat in.
+// One object per day. "Explained" = losses to outdoors, to the ground and (estimated) to the NW neighbour;
+// "left" = the rest of the heat in.
 function prepare(b) {
   return b.day.map((day, i) => {
     const pump = b.heat_pump[i], appliances = b.appliances[i] + b.people[i], sun = b.sun[i];
     const outdoors = b.windows[i] + b.walls[i] + b.ventilation[i] + b.draughts[i], ground = b.ground[i];
-    const heatIn = pump + appliances + (sun ?? 0), explained = outdoors + ground;
+    const neighbour = b.neighbour_nw?.[i] ?? 0;
+    const heatIn = pump + appliances + (sun ?? 0), explained = outdoors + ground + neighbour;
     return { day, hours: b.hours[i], whole: b.hours[i] >= 23, tIn: b.t_in[i], tOut: b.t_out[i], hotWater: b.hot_water?.[i],
-             cop: b.cop[i], copLogged: b.cop_logged[i], pump, appliances, sun, outdoors, ground,
+             cop: b.cop[i], copLogged: b.cop_logged[i], pump, appliances, sun, outdoors, ground, neighbour,
              heatIn, explained, left: heatIn - explained, share: 100 * explained / heatIn };
   });
 }
@@ -194,8 +198,8 @@ function tiles() {
     t.append(el("div", label, "label"), el("div", value, "value"), el("div", sub, "sub")); return t; };
   document.getElementById("tiles").replaceChildren(
     tile("Heat in", `${f1(d.heatIn)} kWh`, `heat pump ${f1(d.pump)}, sun ${f1(d.sun)}`),
-    tile("Explained", `${d.share.toFixed(0)}%`, `${f1(d.explained)} kWh to outdoors and ground`),
-    tile("Left over", `${f1(d.left)} kWh`, "neighbours, storage, errors"));
+    tile("Explained", `${d.share.toFixed(0)}%`, `${f1(d.explained)} kWh: outdoors, ground, NW neighbour`),
+    tile("Left over", `${f1(d.left)} kWh`, "home above, storage, errors"));
 }
 
 // Stacked bars per day. Heat in goes up; heat out goes down as negative values. The left-over makes
@@ -210,8 +214,9 @@ function bars() {
     marker: { color, opacity, line: { color: COLOR.surface, width: 2 } },   // the line is a gap between segments
     hovertemplate: `${name}: %{customdata:.1f} kWh<extra></extra>` });
   const traces = [bar("Heat pump", "pump", COLOR.pump, 1), bar("Appliances and people", "appliances", COLOR.appliances, 1),
-                  bar("Sun", "sun", COLOR.sun, 1), bar("To outdoors", "outdoors", COLOR.outdoors, -1),
-                  bar("To the ground", "ground", COLOR.ground, -1), bar("Left over", "left", COLOR.left, -1)];
+                  bar("Sun", "sun", COLOR.sun, 1), bar("To the ground", "ground", COLOR.ground, -1),
+                  bar("To outdoors", "outdoors", COLOR.outdoors, -1),
+                  bar("To the NW neighbour (estimate)", "neighbour", COLOR.neighbour, -1), bar("Left over", "left", COLOR.left, -1)];
   const every = Math.ceil(46 / slotPx);                                   // a date label needs about 46 px
   const layout = {
     barmode: "relative", barcornerradius: 4, showlegend: false, hovermode: "x unified", hoverlabel: HOVER,
@@ -282,13 +287,14 @@ function signature() {
   const whole = days.filter(d => d.whole).map(d => ({ ...d, x: d.tIn - d.tOut, y: d.heatIn / d.hours, known: d.explained / d.hours }));
   const fitted = whole.filter(d => d.sun != null), note = document.getElementById("signatureNote");
   const line = fitted.length >= 4 ? fitLine(fitted) : null, usable = line && line.spread >= 0.7;
-  const knownSlope = parts.filter(p => p.to === "outdoors").reduce((s, p) => s + p.wk, 0);
+  // W/K that follows the outdoor temperature: parts facing outdoors, and estimated sides for the share they lack.
+  const knownSlope = parts.reduce((s, p) => s + (p.to === "outdoors" ? p.wk : p.wk * (1 - (estimated[p.to] ?? 1))), 0);
   note.textContent = !usable
     ? "The line appears after 4 whole days with sun data and at least 2 K between the mildest and the coldest day."
     : line.slope <= 0
     ? "Heat in does not rise with the temperature difference over these days, so something else drives it."
     : `Heat in rises ${(1000 * line.slope).toFixed(0)} W for every kelvin between inside and outside. ` +
-      `The parts that face outdoors explain ${knownSlope.toFixed(0)} W per kelvin of that.`;
+      `The parts facing outdoors and the NW neighbour explain ${knownSlope.toFixed(0)} W per kelvin of that.`;
   const xs = whole.map(d => d.x), lo = Math.min(...xs), hi = Math.max(...xs);
   const dots = (name, key, color, opacity) => ({
     type: "scatter", mode: "markers", name, x: xs, y: whole.map(d => d[key]), customdata: whole.map(d => dayLabel(d.day)),
@@ -316,14 +322,15 @@ function tables() {
   fillTable("daysTable",     // the key columns first: a phone shows only the first few without scrolling
     [{ label: "Day", text: true, show: dayLabel }, { label: "Explained", show: pct }, { label: "Left over", ...kwh },
      { label: "Heat pump", ...kwh }, { label: "Appliances, people", ...kwh }, { label: "Sun", ...kwh, empty: "?" },
-     { label: "To outdoors", ...kwh }, { label: "To ground", ...kwh }, { label: "Hot water", ...kwh },
+     { label: "To outdoors", ...kwh }, { label: "To ground", ...kwh }, { label: "To NW neighbour", ...kwh },
+     { label: "Hot water", ...kwh },
      { label: "In °C", ...kwh }, { label: "Out °C", ...kwh }, { label: "COP", show: v => v.toFixed(2) }, { label: "Hours" }],
     [...days].reverse().map(d => ({ className: d.whole ? "" : "partial", cells: [
-      d.day, d.share, d.left, d.pump, d.appliances, d.sun, d.outdoors, d.ground, d.hotWater, d.tIn, d.tOut, d.cop, d.hours] })));
+      d.day, d.share, d.left, d.pump, d.appliances, d.sun, d.outdoors, d.ground, d.neighbour, d.hotWater, d.tIn, d.tOut, d.cop, d.hours] })));
 
   const total = parts.reduce((sum, p) => sum + p.wk, 0), largest = Math.max(...parts.map(p => p.wk));
   const share = v => `${Number(v.toPrecision(2))}%`;                    // at most 2 significant figures
-  const tint = { outdoors: COLOR.outdoors, ground: COLOR.ground };      // as in the bars above; grey = not measured
+  const tint = { outdoors: COLOR.outdoors, ground: COLOR.ground, "neighbour NW": COLOR.neighbour };   // as in the bars above
   fillTable("partsTable",
     [{ label: "Part", text: true }, { label: "W/K", show: v => v.toFixed(1) }, { label: "% of total", show: share },
      { label: "Loses to", text: true }, { label: "m²" }, { label: "U", show: v => v.toFixed(2) },
@@ -340,7 +347,9 @@ function notes() {
     : `Heat pump: its electricity times a COP of ${last.cop.toFixed(2)}. That is the default, from the Vaillant counters of ` +
       `1 to 14 November. Log the "this month" counters now and then to replace it:`);
   if (!last.copLogged) list.push({ code: 'python3 note.py "counters: heating=253 yield=319"' });
-  list.push("Left over: heat to the two neighbours and to the home above, heat stored in the building, and every error in the other terms.",
+  list.push("NW neighbour: an estimate. Infrared readings of that wall on 22 and 23 November put the house behind it " +
+            "about a third of the way from the outdoor temperature to yours. A probe on the wall will replace this.",
+            "Left over: heat to the SE neighbour and to the home above, heat stored in the building, and every error in the other terms.",
             "Hot water: the heater switches on and off in one step of about 2.6 kW on L1. Runs found by those steps are taken " +
             "out of the heat pump and the appliances. That heat leaves by the drain, so it is in the numbers but not in the bars.",
             days.every(d => d.sun == null)
@@ -366,7 +375,7 @@ async function load() {
     const r = await fetch(`/api/balance?hours=${24 * n}`);
     if (!r.ok) throw new Error(r.status === 404 ? "the dashboard runs older code: run ~/p1-logger/update.sh" : `HTTP ${r.status}`);
     const b = await r.json();
-    days = prepare(b); parts = b.parts; hourly = b.hourly;
+    days = prepare(b); parts = b.parts; hourly = b.hourly; estimated = b.estimated ?? {};
     if (!days.length) throw new Error("no day has power, room temperatures and outdoor temperature together yet");
     const now = new Date();
     status.textContent = `updated ${two(now.getHours())}:${two(now.getMinutes())}`;

@@ -26,7 +26,12 @@ ZONES = {"Living Room": ("living", 55), "Bedroom": ("basement", 33),
 #   front: living level 5.8 x 0.70 x 0.55 x 0.8 (trees)          + basement 2.0 x 0.55 x 0.55 x 0.8
 SUN_HOLES = {225: 3.8, 45: 2.3}
 
-MEASURED = ("outdoors", "ground")   # other sides with a known temperature; the rest waits for probes
+MEASURED = ("outdoors", "ground")   # other sides with a known temperature
+# Other sides without a sensor yet: where their temperature sits on the way from outdoors (0) to our
+# living level (1). Infrared readings of 22 and 23 Nov 2026 gave the NW wall at 15 °C with the room at
+# 18-19 °C and the SE wall at 18 °C, at 1-2 °C outdoors: about 7-8 °C behind the brick, so 0.3 to 0.4.
+# Replace by a probe on the wall. The SE neighbour and the home above stay unknown.
+ESTIMATED = {"neighbour NW": 0.35}
 
 
 def part(name, group, inside, to, source, note, area=None, u=None, wk=None):
@@ -57,9 +62,9 @@ PARTS = [
          "0.15 air changes per hour of 306 m3", wk=15.0),
     part("Basement floor", "ground", "basement", "ground", "doc",
          "80 mm PIR under the slab; the ground itself insulates too", area=60.0, u=0.20),
-    part("NW side wall, living level", "neighbours", "living", "neighbour NW", "est",
+    part("NW side wall, living level", "neighbour_nw", "living", "neighbour NW", "est",
          "plaster on 10 cm brick, bare", area=30.0, u=2.4),
-    part("NW side wall, basement", "neighbours", "basement", "neighbour NW", "doc",
+    part("NW side wall, basement", "neighbour_nw", "basement", "neighbour NW", "doc",
          "80-100 mm PIR between studs", area=21.0, u=0.28),
     part("SE side wall, living level", "neighbours", "living", "neighbour SE", "est",
          "plaster on 10 cm brick, bare", area=30.0, u=2.4),
@@ -79,5 +84,6 @@ if __name__ == "__main__":
         share = float(f"{100 * p['wk'] / total:.2g}")                   # at most 2 significant figures
         print(f"{p['name']:36} {size} {p['wk']:6.1f} {share:5g}%  {p['to']:13} {p['source']}  {p['note']}")
     known = sum(p["wk"] for p in PARTS if p["to"] in MEASURED)
-    print(f"\n{known:.0f} W/K to outdoors and ground (computed in the balance), "
-          f"{total - known:.0f} W/K to neighbours (not measured yet)")
+    guessed = sum(p["wk"] for p in PARTS if p["to"] in ESTIMATED)
+    print(f"\n{known:.0f} W/K to outdoors and ground (computed in the balance), {guessed:.0f} W/K to "
+          f"{' and '.join(ESTIMATED)} (estimated), {total - known - guessed:.0f} W/K not measured yet")
