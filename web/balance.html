@@ -63,6 +63,7 @@
   </select>
   <select id="window" aria-label="Moving window">
     <option value="24" selected>24 h window</option>
+    <option value="72">72 h window</option>
     <option value="6">6 h window</option>
   </select>
   <a href="/">Live view</a>
@@ -191,15 +192,21 @@ function fillTable(id, columns, rows, foot) {
   if (foot) addRow(table.createTFoot(), foot);
 }
 
+// The headline numbers: all whole days of the period together. One day alone misleads, because floors and
+// walls store heat on one day and give it back on the next. Without a whole day: the latest day so far.
 function tiles() {
-  const d = [...days].reverse().find(x => x.whole) ?? days.at(-1);
-  document.getElementById("tilesTitle").textContent = dayLabel(d.day) + (d.whole ? "" : `, ${d.hours} hours so far`);
+  const whole = days.filter(d => d.whole), use = whole.length ? whole : [days.at(-1)];
+  const sum = key => use.reduce((s, d) => s + (d[key] ?? 0), 0);
+  const heatIn = sum("heatIn"), explained = sum("explained"), left = heatIn - explained, hours = sum("hours");
+  const first = dayLabel(use[0].day, false), last = dayLabel(use.at(-1).day, false);
+  document.getElementById("tilesTitle").textContent = !whole.length ? `${dayLabel(use[0].day)}, ${hours} hours so far`
+    : whole.length === 1 ? dayLabel(use[0].day) : `${first} to ${last}: ${whole.length} whole days together`;
   const tile = (label, value, sub) => { const t = el("div", null, "tile");
     t.append(el("div", label, "label"), el("div", value, "value"), el("div", sub, "sub")); return t; };
   document.getElementById("tiles").replaceChildren(
-    tile("Heat in", `${f1(d.heatIn)} kWh`, `heat pump ${f1(d.pump)}, sun ${f1(d.sun)}`),
-    tile("Explained", `${d.share.toFixed(0)}%`, `${f1(d.explained)} kWh: outdoors, ground, NW neighbour`),
-    tile("Left over", `${f1(d.left)} kWh`, "home above, storage, errors"));
+    tile("Heat in", `${heatIn.toFixed(0)} kWh`, `${(24 * heatIn / hours).toFixed(1)} kWh a day`),
+    tile("Explained", `${(100 * explained / heatIn).toFixed(0)}%`, "outdoors, ground, NW neighbour"),
+    tile("Left over", `${(1000 * left / hours).toFixed(0)} W`, "on average: home above, storage, errors"));
 }
 
 // Stacked bars per day. Heat in goes up; heat out goes down as negative values. The left-over makes
@@ -234,7 +241,8 @@ function bars() {
 
 // Moving balance: for every hour, the mean power over the window that ends with that hour. It shows
 // how the balance moves within a day. A 24 h window hides the daily rhythm (sun, showers, cooking);
-// a 6 h window shows it, and also heat going into and out of the building's mass.
+// a 6 h window shows it, and also heat going into and out of the building's mass; a 72 h window
+// averages that storage out as well.
 function movingBalance() {
   const span = Number(document.getElementById("window").value), note = document.getElementById("movingNote");
   const t = (hourly?.time ?? []).map(s => new Date(s.replace(" ", "T")).getTime());
@@ -355,6 +363,8 @@ function notes() {
             days.every(d => d.sun == null)
               ? "Sun: no data yet. Add the knmi_hourly.py line to cron (see README)."
               : "Sun: KNMI publishes about two days late. Until then a day has no sun term (\"?\"), and its left-over is that much too low.",
+            "One day alone can mislead: floors and walls store heat on one day and give it back on the next. " +
+            "The numbers at the top take all whole days together.",
             "Pale bars and grey rows in the numbers: a day with under 23 hours of data, such as today.");
   document.getElementById("notes").replaceChildren(...list.map(item => {
     const li = el("li", typeof item === "string" ? item : null);

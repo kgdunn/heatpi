@@ -285,6 +285,14 @@ def main():
               f" {b['heat_pump'][i]:5.1f} {b['appliances'][i]:5.1f} {b['people'][i]:4.1f} {sun} |"
               + "".join(f" {b[k][i]:5.1f}" for k in OUT)
               + f" | {b['left_over'][i]:5.1f} {100 * explained / heat_in:4.0f}% | {b['hot_water'][i]:4.1f}")
+    # One day alone misleads: floors and walls store heat on one day and give it back on the next.
+    whole = [i for i, hours in enumerate(b["hours"]) if hours >= 23]
+    if len(whole) > 1:
+        heat_in = sum(b[k][i] or 0 for k in IN for i in whole)
+        explained = sum(b[k][i] for k in OUT for i in whole)
+        hours = sum(b["hours"][i] for i in whole)
+        print(f"\n{len(whole)} whole days together: {heat_in:.1f} kWh in, {100 * explained / heat_in:.0f}% explained, "
+              f"{heat_in - explained:.1f} kWh left over ({1000 * (heat_in - explained) / hours:.0f} W on average)")
     print("\nh = hours with data (24 = a whole day).  ? = KNMI sunshine not published yet (about 2 days late).")
 
 
