@@ -7,6 +7,7 @@ the browser with Plotly from a CDN, so the Pi only sends a few kB of data.
     GET /                      -> web/index.html   (live view; web/balance.html is the heat balance)
     GET /api/<series>?hours=24 -> {"time": [...], "<column>": [...], ...}  (local time)
     GET /api/balance?hours=336 -> the heat balance per day (balance.py)
+    GET /api/schedule          -> every zone's newest weekly schedule (web/schedule.html)
 
 Usage:  python3 dashboard.py [--port 8080]
 """
@@ -31,7 +32,7 @@ MAX_HOURS = 24 * 31
 
 # The only SQL the web can trigger: named, read-only queries. One line per new series.
 QUERIES = {
-    "zones": "SELECT ts_utc, zone, temp_c, setpoint_c FROM zones WHERE ts_utc >= ? ORDER BY ts_utc",
+    "zones": "SELECT ts_utc, zone, temp_c, setpoint_c, zone_mode FROM zones WHERE ts_utc >= ? ORDER BY ts_utc",
     "room": "SELECT ts_utc, temp_c, rh FROM room WHERE ts_utc >= ? ORDER BY ts_utc",
     "power": "SELECT substr(ts_utc, 1, 16) || ':00+00:00' AS ts_utc, avg(power_w) AS total_w, "
              "avg(power_l1_w) AS l1_w FROM p1 WHERE ts_utc >= ? GROUP BY 1 ORDER BY 1",  # 1-min means
@@ -74,8 +75,22 @@ def energy(hours):
     return out
 
 
+def schedule(hours):
+    """Every zone's newest stored weekly schedule (evohome_logger.py reads it every 6 hours), as columns:
+    zone, day (0 = Monday), start ("HH:MM", local), setpoint_c, and when it was read (local time).
+    `hours` is not used: a schedule has no time window."""
+    with closing(sqlite3.connect(f"file:{DB}?mode=ro", uri=True)) as db:
+        rows = db.execute("SELECT zone, day, start, setpoint_c, fetched_utc FROM schedule s WHERE fetched_utc = "
+                          "(SELECT max(fetched_utc) FROM schedule WHERE zone = s.zone) ORDER BY zone, day, start"
+                          ).fetchall()
+    names = ("zone", "day", "start", "setpoint_c", "read")
+    data = {n: list(col) for n, col in zip(names, zip(*rows))} if rows else {n: [] for n in names}
+    data["read"] = [datetime.fromisoformat(t).astimezone(LOCAL).strftime("%Y-%m-%d %H:%M") for t in data["read"]]
+    return data
+
+
 # Series built in Python rather than in one query.
-COMPUTED = {"energy": energy, "balance": lambda hours: balance.daily(DB, hours)}
+COMPUTED = {"energy": energy, "balance": lambda hours: balance.daily(DB, hours), "schedule": schedule}
 
 
 def version():
