@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room schedules</title>
+<style>
+  :root { --surface: #fcfcfb; --text: #1a1a19; --text-2: #52514e; --muted: #6b6a66; --rule: #e4e3df; }
+  body { margin: 0; font: 15px/1.4 -apple-system, system-ui, sans-serif; background: var(--surface); color: var(--text); }
+  header { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; padding: 8px 16px 6px; }
+  h1 { font-size: 17px; margin: 0; }
+  header a { color: #1c5cab; font-size: 14px; }
+  #status { color: var(--muted); font-size: 13px; }
+  #version { font-size: 11px; line-height: 1.3; color: var(--muted); text-align: right; margin-left: auto; }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; }
+  .intro { color: var(--text-2); font-size: 13px; margin: 2px 0 12px; }
+  .rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+  .room { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  .room h2 { font-size: 15px; margin: 0; display: flex; align-items: center; gap: 7px; }
+  .room h2 i { display: inline-block; width: 18px; border-top: 3px solid; }
+  .now { font-size: 13px; color: var(--text-2); margin: 2px 0 8px; }
+  .now b { color: var(--text); font-weight: 600; }
+  .week { display: grid; grid-template-columns: 34px 1fr; row-gap: 4px; align-items: center; }
+  .day { font-size: 12px; color: var(--text-2); }
+  .day.today { color: var(--text); font-weight: 600; }
+  .axis, .bar { position: relative; }
+  .axis { height: 15px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .axis span { position: absolute; transform: translateX(-50%); }
+  .axis span:first-child { transform: none; }
+  .axis span:last-child { transform: translateX(-100%); }
+  .bar { height: 24px; }
+  /* One block per setpoint: placed by its start and end time, a 2 px gap after it, 4 px corners. */
+  .seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; display: flex; align-items: center;
+         padding-left: 4px; box-sizing: border-box; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .seg b { font-weight: 600; white-space: nowrap; }
+  .nowline { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text);
+             border-radius: 1px; box-shadow: 0 0 0 1px var(--surface); }
+  details { margin-top: 8px; font-size: 12px; color: var(--text-2); }
+  summary { cursor: pointer; padding: 4px 0; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td { padding: 2px 10px 2px 0; vertical-align: top; }
+  td:first-child { color: var(--muted); }
+  td span { display: inline-block; white-space: nowrap; margin-right: 10px; }   /* a time and its setpoint stay together */
+  @media (max-width: 760px) { h1 { font-size: 15px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Room schedules</h1>
+  <a href="/">Live view</a>
+  <a href="balance.html">Heat balance</a>
+  <span id="status"></span>
+  <div id="version"></div>
+</header>
+<main>
+  <p class="intro" id="intro"></p>
+  <div class="rooms" id="rooms"></div>
+</main>
+
+<script>
+// Colour follows the room, as on the live view; within a room, darker = a higher setpoint.
+const ROOM_COLOR = { "Badkamer": "#2a78d6", "Bedroom": "#eb6834", "Logeer": "#1f9e89", "Living Room": "#b0389b" };
+const UPSTAIRS = new Set(["Living Room"]);
+const NEUTRAL = "#5b5a56", SURFACE = [252, 252, 251], INK = [11, 11, 11];
+const LOW = 15, HIGH = 22;                 // °C: the palest and the fullest colour
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const two = n => String(n).padStart(2, "0");
+const clock = m => `${two(Math.floor(m / 60) % 24)}:${two(m % 60)}`;
+const minutes = hhmm => 60 * Number(hhmm.slice(0, 2)) + Number(hhmm.slice(3, 5));
+const el = (tag, text, className) => { const e = document.createElement(tag);
+  if (text != null) e.textContent = text; if (className) e.className = className; return e; };
+
+// The switchpoints of one zone -> per day (Monday = 0) a list of blocks {from, to, setpoint} in minutes.
+// A day starts with the last setpoint of the day before (Sunday's carries over to Monday), unless it has
+// a switchpoint at 00:00 itself. Blocks with the same setpoint in a row are merged.
+function blocks(points) {
+  const byDay = Array.from({ length: 7 }, () => []);
+  for (const p of points) byDay[p.day].push([minutes(p.start), p.setpoint]);
+  const carried = day => { for (let k = 1; k <= 7; k++) { const d = byDay[(day - k + 7) % 7]; if (d.length) return d.at(-1)[1]; } };
+  return byDay.map((cuts, day) => {
+    const all = cuts[0]?.[0] === 0 ? cuts : [[0, carried(day)], ...cuts], out = [];
+    all.forEach(([from, setpoint], i) => {
+      const to = all[i + 1]?.[0] ?? 1440;
+      if (out.length && out.at(-1).setpoint === setpoint) out.at(-1).to = to;
+      else if (to > from) out.push({ from, to, setpoint });
+    });
+    return out;
+  });
+}
+
+// A block's colour: the room's colour mixed into the page, more of it for a higher setpoint. The label
+// inside takes white or near-black, whichever stands out more against that mix.
+function shade(hex, setpoint) {
+  const t = Math.min(1, Math.max(0, (setpoint - LOW) / (HIGH - LOW))), alpha = 0.18 + 0.82 * t;
+  const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map((c, i) => Math.round(SURFACE[i] + alpha * (c - SURFACE[i])));
+  const lum = c => { const l = c.map(v => v / 255).map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+                     return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+  const white = 1.05 / (lum(rgb) + 0.05), ink = (lum(rgb) + 0.05) / (lum(INK) + 0.05);
+  return { fill: `rgb(${rgb})`, text: white > ink ? "#ffffff" : "#0b0b0b" };
+}
+
+// Monday = 0 for a Date, as in the schedule.
+const weekday = date => (date.getDay() + 6) % 7;
+
+// What the schedule asks now, and its next change (looking up to a week ahead).
+function nowAndNext(week, date) {
+  const day = weekday(date), m = date.getHours() * 60 + date.getMinutes();
+  const current = week[day].find(b => b.from <= m && m < b.to);
+  for (let k = 0; k <= 7; k++) {
+    const d = (day + k) % 7, next = week[d].find(b => (k ? b.from > 0 : b.from > m) && b.setpoint !== current?.setpoint);
+    if (next) return { current, next, inDays: k };
+  }
+  return { current };
+}
+
+function roomCard(name, week, live, today) {
+  const color = ROOM_COLOR[name] ?? NEUTRAL, card = el("section", null, "room");
+  const title = el("h2"); const swatch = el("i"); swatch.style.borderColor = color;
+  title.append(swatch, name);
+
+  // One line on what happens now: the measured temperature, the setpoint evohome uses, and the next change.
+  const { current, next, inDays } = nowAndNext(week, today), now = el("p", null, "now");
+  const parts = [];
+  if (live?.temp_c != null) parts.push(["Now ", `${live.temp_c.toFixed(1)} °C`]);
+  if (live?.setpoint_c != null) parts.push([", setpoint ", `${live.setpoint_c.toFixed(1)} °C`]);
+  for (const [text, value] of parts) now.append(text, el("b", value));
+  if (live && current && live.setpoint_c !== current.setpoint)
+    now.append(` (the schedule says ${current.setpoint.toFixed(1)} °C${live.zone_mode && live.zone_mode !== "FollowSchedule" ? `: ${live.zone_mode}` : ""})`);
+  if (next) now.append(`. Next: ${inDays ? DAYS[(weekday(today) + inDays) % 7] + " " : ""}${clock(next.from)} → `,
+                       el("b", `${next.setpoint.toFixed(1)} °C`), ".");
+
+  // The week: one row per day, Monday first, a block per setpoint, the label inside where it fits.
+  const grid = el("div", null, "week"), axis = el("div", null, "axis");
+  for (const h of [0, 6, 12, 18, 24]) { const t = el("span", two(h)); t.style.left = `${100 * h / 24}%`; axis.append(t); }
+  grid.append(el("span"), axis);
+  week.forEach((day, d) => {
+    const isToday = d === weekday(today), bar = el("div", null, "bar");
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", `${DAYS[d]}: ` + day.map(b => `from ${clock(b.from)} ${b.setpoint.toFixed(1)} °C`).join(", "));
+    for (const b of day) {
+      const seg = el("span", null, "seg"), { fill, text } = shade(color, b.setpoint);
+      Object.assign(seg.style, { left: `${100 * b.from / 1440}%`, width: `calc(${100 * (b.to - b.from) / 1440}% - 2px)`,
+                                 background: fill, color: text });
+      seg.title = `${DAYS[d]} ${clock(b.from)}–${clock(b.to)}: ${b.setpoint.toFixed(1)} °C`;
+      seg.append(el("b", Number.isInteger(b.setpoint) ? String(b.setpoint) : b.setpoint.toFixed(1)));
+      bar.append(seg);
+    }
+    if (isToday) { const line = el("span", null, "nowline");
+      line.style.left = `${100 * (today.getHours() * 60 + today.getMinutes()) / 1440}%`; bar.append(line); }
+    grid.append(el("span", DAYS[d], isToday ? "day today" : "day"), bar);
+  });
+
+  // The same as text: every switch time, for a phone where nothing shows on hover.
+  const details = el("details"), table = el("table");
+  details.append(el("summary", "Switch times"), table);
+  week.forEach((day, d) => { const row = table.insertRow();
+    const cell = el("td"); cell.append(...day.map(b => el("span", `${clock(b.from)} → ${b.setpoint.toFixed(1)}`)));
+    row.append(el("td", DAYS[d]), cell); });
+
+  card.append(title, now, grid, details);
+  return card;
+}
+
+// A label only shows where it fits with room to spare; otherwise the hover text and the table carry it.
+function fitLabels() {
+  for (const seg of document.querySelectorAll(".seg")) {
+    const label = seg.firstChild;
+    label.hidden = false;
+    label.hidden = label.offsetWidth + 6 > seg.clientWidth;
+  }
+}
+
+let data = null;
+function render() {
+  if (!data) return;
+  const { sched, zones } = data, today = new Date(), rooms = document.getElementById("rooms");
+  const names = [...new Set(sched.zone)].sort((a, b) => UPSTAIRS.has(a) - UPSTAIRS.has(b) || a.localeCompare(b));
+  const live = {};                                     // the newest reading of each zone
+  zones.time.forEach((_, i) => { live[zones.zone[i]] = { temp_c: zones.temp_c[i], setpoint_c: zones.setpoint_c[i],
+                                                         zone_mode: zones.zone_mode?.[i] }; });
+  rooms.replaceChildren(...names.map(name => {
+    const points = sched.zone.flatMap((z, i) => (z === name ? [{ day: sched.day[i], start: sched.start[i], setpoint: sched.setpoint_c[i] }] : []));
+    return roomCard(name, blocks(points), live[name], today);
+  }));
+  const read = new Date(([...new Set(sched.read)].sort().at(-1) ?? "").replace(" ", "T"));
+  document.getElementById("intro").textContent =
+    `Each room's weekly schedule in evohome: darker is warmer, the number is the setpoint in °C, the black line is now. ` +
+    `Read from evohome on ${read.getDate()} ${read.toLocaleString("en-GB", { month: "short" })} at ` +
+    `${two(read.getHours())}:${two(read.getMinutes())}, and every 6 hours after that. A setpoint now that differs from ` +
+    `the schedule is an override (by hand, away or eco) or evohome warming up early for the next block.`;
+  fitLabels();
+}
+
+async function load() {
+  const status = document.getElementById("status");
+  try {
+    const [sched, zones] = await Promise.all([
+      fetch("/api/schedule").then(r => (r.ok ? r.json() : Promise.reject(r))),
+      fetch("/api/zones?hours=1").then(r => (r.ok ? r.json() : { time: [], zone: [] }))]);
+    if (!sched.zone.length) throw new Error("no schedule stored yet");
+    data = { sched, zones };
+    const now = new Date();
+    status.textContent = `updated ${two(now.getHours())}:${two(now.getMinutes())}`;
+    render();
+  } catch (e) {
+    const why = e.status === 404 ? "the dashboard runs older code: run ~/p1-logger/update.sh"
+      : e.status === 503 ? "no schedule stored yet: the evohome logger reads it when it starts (update.sh restarts it)"
+      : e.message ?? `HTTP ${e.status}`;
+    status.textContent = `No schedule: ${why}`;
+  }
+}
+
+// "Code update / 21 Nov 12:30 UTC": when the code the Pi runs was committed (hover: hash and message).
+fetch("/api/version").then(r => r.json()).then(v => {
+  if (!v.time) return;
+  const d = new Date(v.time * 1000), e = document.getElementById("version");
+  e.append("Code update", document.createElement("br"), `${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })} ` +
+           `${two(d.getUTCHours())}:${two(d.getUTCMinutes())} UTC`);
+  e.title = `${v.commit}: ${v.subject}`;
+}).catch(() => {});
+
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(fitLabels, 200); });
+load();
+setInterval(load, 5 * 60 * 1000);   // the now line moves, and a new reading arrives every 10 minutes
+</script>
+</body>
+</html>

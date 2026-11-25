@@ -50,7 +50,7 @@ On the Pi itself, read only, so the loggers are never blocked:
 | What | Runs as | Writes |
 |---|---|---|
 | `p1_logger.py` | service `p1-logger`, every 10 s, flushed once a minute | `p1` |
-| `evohome_logger.py` | service `evohome-logger`, every 10 min, `.venv` (Python 3.13, evohome-async 3.2.2) | `zones` |
+| `evohome_logger.py` | service `evohome-logger`, every 10 min, `.venv` (Python 3.13, evohome-async 3.2.2); schedules every 6 h | `zones`, `schedule` |
 | `room_logger.py` | service `room-logger`, DHT22 on GPIO 12, 1/min | `room` |
 | `loudness_logger.py` | service `loudness-logger`, Grove Base Hat A0 (I2C 0x04), 10 Hz → 1/min | `loudness` |
 | `dashboard.py` + `web/` | service `dashboard`, port 8080, read-only; imports `balance.py` and `house.py` | none |
@@ -68,6 +68,7 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 |---|---|---|
 | `p1` | every 10 s | `power_w`, `power_l1_w`, `power_l2_w`, `power_l3_w`, `energy_import_kwh`, `energy_export_kwh`, `average_power_15m_w`, `gas_m3`, `gas_ts`, `meter_ts`. Three-phase house; the heat pump is on L1. |
 | `zones` | every 10 min, since 20 Nov 2026 ~22:00 local | `zone`, `temp_c`, `setpoint_c`, `zone_mode`, `system_mode`. Zones: Badkamer, Bedroom, Logeer (downstairs), Living Room (upstairs). |
+| `schedule` | when a zone's schedule changes (read every 6 h) | One row per switchpoint: `fetched_utc` (when read), `zone`, `day` (0 = Monday), `start` (local "HH:MM"), `setpoint_c`. The newest `fetched_utc` per zone is the schedule in force; older ones are its history. |
 | `room` | 1/min | technical room (basement): `temp_c`, `rh`, `n` reads |
 | `loudness` | 1/min | technical room: `mean`, `p95`, `max` in raw 12-bit units (0-4095), `n` samples |
 | `street_temp` | hourly | Luchtwachters sensors via the RIVM API: `sensor`, `temp_c` (`street_air`: PM and more) |
@@ -107,8 +108,12 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 - SQLite: connect with `timeout=30`, keep write transactions short (`with db:`), and read through
   `mode=ro` URIs.
 - `dashboard.py` uses only the standard library and runs only whitelisted queries (`QUERIES`),
-  computed series (`COMPUTED`, e.g. `energy`, `balance`) and `/api/version`. Each page in `web/`
-  is one file with Plotly 2.35.2 from jsDelivr: `index.html` (live view) and `balance.html`.
+  computed series (`COMPUTED`, e.g. `energy`, `balance`, `schedule`) and `/api/version`. Each page in
+  `web/` is one file: `index.html` (live view) and `balance.html` with Plotly 2.35.2 from jsDelivr,
+  `schedule.html` (room schedules) in plain HTML.
+- **Writing to evohome:** the library can (`zone.set_temperature(..., until=...)`, `set_schedule`),
+  but nothing does yet. When it comes: overrides that end by themselves (`until=`), from a script
+  on the Pi, never from the dashboard (it has no login).
 - **Heat balance:** `house.py` holds the house (areas, U-values, where each part loses heat to),
   `balance.py` the calculation; both use only the standard library because the dashboard imports
   them. The reasoning and the open questions are in NOTES.md.

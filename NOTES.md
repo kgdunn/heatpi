@@ -93,6 +93,15 @@ every settings change are in the `events` table (`python3 note.py` lists them).
 - **Legend:** tapping an entry hides or shows its lines, remembered per device. Room colours were
   checked for colour-blind separation: Badkamer #2a78d6, Bedroom #eb6834, Logeer #1f9e89, Living
   Room #b0389b. Neutral greys: #5b5a56, #a3a29d.
+- **Schedules** (`/schedule.html`, 25 Nov): each room's weekly evohome schedule as a week of
+  blocks, darker for a higher setpoint, the label inside where it fits, a line at now, and the
+  switch times as text. A line per room says the temperature and setpoint now, whether the
+  setpoint differs from the schedule, and the next change. The evohome logger reads the schedules
+  every 6 hours and stores one only when it changed, so `schedule` keeps their history.
+- **Planned, in this order (Kevin, 25 Nov):** (1) show how far and how wildly each room strays from
+  its setpoint; (2) change setpoints ahead of the weather forecast (pre-heat before a cold night,
+  hold back before sun). For (2): overrides that end by themselves, from a script, logged in
+  `events`, never from the dashboard.
 - **Top right:** the running commit's time.
 
 ## Energy balance (started 22 Nov)
