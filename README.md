@@ -11,7 +11,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `street_consensus.py` | One sun-robust outdoor temperature, plus sun on our facade | cron, after the above | `street_consensus` |
 | `loudness_logger.py` | Grove loudness sensor on A0, one row per minute (optional) | service `loudness-logger` | `loudness` |
 | `room_logger.py` | Grove temperature & humidity sensor (DHT22), one row per minute | service `room-logger` | `room` |
-| `evohome_logger.py` | Every evohome zone's temperature (0.5 °C, and 0.01 °C from the older v1 API), setpoint and mode, every 5 min, and its weekly schedule every 6 h (TCC cloud, read only) | service `evohome-logger` | `zones`, `schedule` |
+| `evohome_logger.py` | Every evohome zone's temperature (0.5 °C, and 0.1 °C from the older v1 API), setpoint and mode, every 5 min, and its weekly schedule every 6 h (TCC cloud, read only) | service `evohome-logger` | `zones`, `schedule` |
 | `knmi_temp.py` | KNMI Rotterdam every 10 min (EDR API, free key in `~/.knmi`): air temperature, and sunshine, wind, rain and soil temperature for the heat balance | cron, every 10 min | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | KNMI Rotterdam per hour, no key: sunshine, wind, rain (about 2 days late) | cron, every 6 h | `knmi_hourly` |
 | `forecast_logger.py` | The weather forecast for the house (KNMI's HARMONIE model via Open-Meteo, no key): temperature and sunshine for the next 48 h, every hour | cron, hourly | `forecast` |

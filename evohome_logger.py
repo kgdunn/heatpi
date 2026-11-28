@@ -3,7 +3,7 @@
 
 Reads from Honeywell/Resideo's Total Connect Comfort cloud (the same data the
 evohome app shows). The v2 API rounds temperatures to 0.5 °C; the older v1 API, read with the
-same login, gives them to 0.01 °C (`temp_fine_c`). A v1 failure leaves that column empty and
+same login, gives them to 0.1 °C (`temp_fine_c`). A v1 failure leaves that column empty and
 pauses v1 for an hour; the v2 rows are written either way. Polling every 5 minutes keeps well clear of the vendor's
 rate limit, and the access token is cached between restarts for the same reason.
 
@@ -87,7 +87,7 @@ def zones_of(location):
 
 def zone_rows(location, ts, fine):
     """One row per zone: time, name, temperature, setpoint, zone mode, system mode (e.g. Away), and
-    the 0.01 °C temperature from `fine` ({zone name: °C}; empty when v1 failed)."""
+    the 0.1 °C temperature from `fine` ({zone name: °C}; empty when v1 failed)."""
     for gateway in location.gateways:
         for tcs in gateway.systems:
             for zone in tcs.zones:
@@ -96,7 +96,7 @@ def zone_rows(location, ts, fine):
 
 
 async def read_fine(v1):
-    """{zone name: °C to 0.01} from the v1 API: one call for all zones (two the first time)."""
+    """{zone name: °C to 0.1} from the v1 API: one call for all zones (two the first time)."""
     await v1.get_status()
     return {zone.name: zone.temperature for location in v1.locations for zone in zones_of(location)}
 
@@ -139,7 +139,7 @@ async def run(db_path, every, once=False):
                     fine = await read_fine(v1)
                     await tokens.save_session_id()
                 except Exception:           # v1 is a bonus: never let it stop the v2 rows
-                    log.exception("Reading the 0.01 °C temperatures (v1) failed; pausing v1 for an hour")
+                    log.exception("Reading the 0.1 °C temperatures (v1) failed; pausing v1 for an hour")
                     fine_after = time.time() + FINE_PAUSE
             try:
                 await location.get_status()
