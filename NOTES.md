@@ -385,6 +385,13 @@ There is no car charger, air conditioner or dehumidifier.
 - `house.ESTIMATED = {"neighbour NW": 0.40}` puts this into the balance as an estimated term
   ("to the NW neighbour"). A probe on the wall should replace it.
 
+**Living-room front windows, 28 Nov midday:** draught strips going in (foam and E/P-profile rubber).
+Before: the old wooden frame read 8 °C on its room side, with the room at about 18 °C and outdoors
+about 0 °C. A solid wooden frame (U about 2) would read about 13 °C there, so cold air runs through
+the frame or the joint between frame and wall. At 8 °C the wood sits at the dew point of 18 °C air
+at 50-55 % humidity: condensation and the black spots on the foam. Check after: the same spot
+should read warmer once the draught stops; the `events` note marks the change for the balance.
+
 **Infrared, NW wall in the basement (28 Nov, late morning, same thermometer):** 16 °C on average at
 4 spots, room 18 °C. The documents give 80-100 mm PIR between studs (U 0.28): then the wall would
 read within about 0.3 K of the room.
