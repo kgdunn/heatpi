@@ -365,6 +365,11 @@ read within about 0.3 K of the room.
   0-2 °C, so 7-8 °C), that is U 1.4-1.6: an uninsulated or badly bridged wall, not PIR.
   `house.py` now has U 1.5 ("est"): +26 W/K, of which about 15 W/K follows the outdoor temperature.
   It brings house.py closer to the 178 W/K that `signature.py` found.
+- The NW house starts higher (Kevin, 28 Nov): the lowest 40 % of this wall (8.4 m²) has soil
+  behind it, the upper 60 % (12.6 m²) the NW house. `house.py` splits the wall that way, with the
+  soil at `GROUND_C` (11 °C). shortcut: soil this shallow is colder in winter than deep ground;
+  `knmi_live.soil_c` (1 m deep) could replace it. Splitting the 2 K the same way gives U 1.5-1.7, so
+  U 1.5 stays. The SE neighbour's house mirrors ours: its basement is at our level.
 - To tell missing insulation from bridging: a line of readings every 15 cm across 1.2 m at
   shoulder height. Cold stripes about 60 cm apart are studs (insulation there, but bridged); an
   even 2 K under the room is no insulation.
