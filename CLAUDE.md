@@ -87,6 +87,10 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
   pump idles at 60-90 W and runs above 1.2 kW. `recent.py` counts L1 > 500 W as running;
   `hp_check.py` needs 400 W above the quiet level for at least 10 minutes. Short spikes to ~6 kW are
   the heat pump plus the hot-water heater. Kitchen-size loads of 1.2-1.8 kW show up for minutes.
+- **COP** is not a constant: `balance.cop_model` scales the installer guide's COP (outdoor and flow
+  temperature, the flow from the logged heat curve) to each period between two logged counter
+  readings. Log both counters and every heat-curve or max-flow change as `events` notes, in the
+  forms "counters: heating=N yield=N", "heat curve A -> B", "max target flow A -> B".
 - **Hot water** comes from a separate, purely electric heater on L1, not the heat pump. It switches
   in one step of about 2.6 kW; `balance.py` finds its runs by that step (`hp_check.py` and
   `recent.py` do not). The heat pump only heats the underfloor-heating buffer tank.

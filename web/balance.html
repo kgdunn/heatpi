@@ -351,11 +351,12 @@ function tables() {
 
 function notes() {
   const last = days.at(-1), list = [];
-  list.push(last.copLogged
-    ? `Heat pump: its electricity times a COP of ${last.cop.toFixed(2)}, from the Vaillant counters you logged.`
-    : `Heat pump: its electricity times a COP of ${last.cop.toFixed(2)}. That is the default, from the Vaillant counters of ` +
-      `1 to 14 November. Log the "this month" counters now and then to replace it:`);
-  if (!last.copLogged) list.push({ code: 'python3 note.py "counters: heating=253 yield=319"' });
+  list.push("Heat pump: its electricity times a COP that follows the outdoor temperature, hour by hour: the installer " +
+            "guide's COP at the flow temperature the heat curve asks for, scaled so that each period between two logged " +
+            "readings of the Vaillant counters comes out as measured. The COP column is each day's heat over its electricity.",
+            last.copLogged ? "The newest day lies inside a measured period."
+              : "The newest days lie after the last counter reading, so that period's scale carries on. Log both " +
+                "counters about once a week and before each heat-curve change; `python3 balance.py --cop` shows the model.");
   list.push("NW neighbour: an estimate. Infrared readings of that wall on 22 and 23 November put the house behind it " +
             "about a third of the way from the outdoor temperature to yours. A probe on the wall will replace this.",
             "Left over: heat to the SE neighbour and to the home above, heat stored in the building, and every error in the other terms.",

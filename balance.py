@@ -8,9 +8,10 @@
 
 How each term is made, hour by hour:
   heat pump   COP x its electricity. Electricity: L1 more than 400 W above its quiet level for at
-              least 10 minutes in a row (the rule of hp_check.py). COP: from the Vaillant's
-              "this month" counters when you log them, else house.COP_DEFAULT:
-                  python3 note.py "counters: heating=253 yield=319"
+              least 10 minutes in a row (the rule of hp_check.py). COP: follows the outdoor
+              temperature, hour by hour: the installer guide's COP at the flow temperature the heat
+              curve asks for, scaled so that each period between two logged readings of the
+              Vaillant's "this month" counters comes out as measured (see cop_model).
   hot water   the electric heater on L1: a plain resistance, so it switches on and off in one step
               of about 2.6 kW, where the heat pump ramps. Its runs are found by those steps and
               taken out: that heat leaves by the drain, so it is no heat in.
@@ -137,11 +138,61 @@ def on_facade(flat, when, facing):
     return (flat - diffuse) / up * max(aim, 0) + 0.5 * diffuse + 0.5 * 0.2 * flat
 
 
-def cop_steps(notes):
-    """[(from_time, COP), ...] from the Vaillant's "this month" counters logged with note.py.
-    COP = (electricity + heat taken from the air) / electricity = 1 + yield / heating, between two
-    readings. The first reading of a month counts from the 1st, where the counters restart."""
-    steps, last = [], None
+# COP of the aroTHERM pure from the installer guide (EN 14511; mean of the 8 and 10 kW units, the likely
+# sizes). Only its shape is used: each period between two counter readings scales it to what was measured.
+GUIDE_W35 = ((-7, 2.895), (2, 3.385), (7, 4.665))      # outdoor °C -> COP at 35 °C flow (+2 °C includes defrost)
+GUIDE_FLOW = ((35, 1.0), (45, 0.759), (55, 0.678))     # flow °C -> COP relative to 35 °C flow, at +7 °C outdoors
+
+
+def interpolate(points, x, extend=False):
+    """Straight lines between the points; beyond the ends flat, or along the first segment if `extend`.
+    shortcut: flat above +7 °C outdoors, where the guide gives nothing; upgrade once eBUS reads the COP."""
+    (x0, y0), (x1, y1) = points[0], points[1]
+    if x <= x0:
+        return y0 + (x - x0) * (y1 - y0) / (x1 - x0) if extend else y0
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if x <= x1:
+            return y0 + (x - x0) * (y1 - y0) / (x1 - x0)
+    return points[-1][1]
+
+
+def flow_temperature(t_out, curve, max_flow, desired=20.0):
+    """The Vaillant's target flow (°C) at an outdoor temperature: fitted to its readings of 14 and 22 Nov
+    2026 (curves 1.20 and 1.00, within about 1 K; curve 1.85 is an extrapolation), capped at its maximum."""
+    return min(max_flow, desired + 4.55 * max(0.0, curve * (desired - t_out)) ** 0.54)
+
+
+def cop_guide(t_out, flow):
+    """The guide's COP at an outdoor and a flow temperature."""
+    return interpolate(GUIDE_W35, t_out) * min(1.3, interpolate(GUIDE_FLOW, flow, extend=True))
+
+
+def settings(notes):
+    """[(from, curve, max flow)] from the logged changes ("heat curve 1.20 -> 1.00", "max target flow
+    55 -> 45"). The first entry holds what was set before the first change, else house.py's values."""
+    changes = []
+    for ts, note in notes:
+        for key, pattern in (("curve", r"heat curve\s+([\d.]+)\s*->\s*([\d.]+)"),
+                             ("max", r"max target flow\s+([\d.]+)\s*->\s*([\d.]+)")):
+            if found := re.search(pattern, note, re.I):
+                changes.append((datetime.fromisoformat(ts), key, float(found[1]), float(found[2])))
+    changes.sort()
+    state = {"curve": house.HEAT_CURVE, "max": house.MAX_FLOW_C}
+    for key in state:                                         # before a setting's first change: its old value
+        state[key] = next((before for _, k, before, _ in changes if k == key), state[key])
+    out = [(datetime.min.replace(tzinfo=timezone.utc), state["curve"], state["max"])]
+    for when, key, _, after in changes:
+        state[key] = after
+        out.append((when, state["curve"], state["max"]))
+    return out
+
+
+def counter_periods(notes):
+    """[(start, end, COP)] between the Vaillant's "this month" counters logged with note.py
+    (`python3 note.py --counters`, which stores "counters: heating=N yield=N").
+    COP = (electricity + heat taken from the air) / electricity = 1 + yield / heating. The first
+    reading of a month counts from the 1st, where the counters restart."""
+    periods, last = [], None
     for ts, note in notes:
         found = re.search(r"counters:.*?heating=([\d.]+).*?yield=([\d.]+)", note, re.I)
         if not found:
@@ -153,9 +204,42 @@ def cop_steps(notes):
         else:
             start, heating0, air0 = month, 0.0, 0.0
         if heating - heating0 >= 10:                          # under 10 kWh the 1 kWh steps are too coarse
-            steps.append((start, 1 + (air - air0) / (heating - heating0)))
+            periods.append((start, when, 1 + (air - air0) / (heating - heating0)))
         last = (when, heating, air)
-    return steps
+    return periods
+
+
+def cop_model(db):
+    """COP for any hour, following the outdoor temperature: the guide's COP at the flow temperature the
+    heat curve then asked for, times a scale per counter period. The scale makes each period's
+    heat-weighted COP equal what the counters measured; after the last period, its scale carries on.
+
+    Returns (cop, periods): cop(when, t_out) -> (COP, inside a measured period?), and the periods as
+    [(start, end, measured, guide, scale)] for checking. shortcut: a period's heat is taken to follow
+    the degree-hours below house.HEATING_BELOW_C, not the logged heat-pump power."""
+    notes = rows(db, "SELECT ts_utc, note FROM events ORDER BY ts_utc")
+    setting = settings(notes)
+
+    def guide_at(when, t_out):
+        _, curve, max_flow = next(s for s in reversed(setting) if s[0] <= when)
+        return cop_guide(t_out, flow_temperature(t_out, curve, max_flow))
+
+    periods = []
+    for start, end, measured in counter_periods(notes):
+        hours = rows(db, f"SELECT {HOURLY}, avg(temp_c) FROM street_consensus WHERE ts_utc >= ? AND ts_utc < ? "
+                         "GROUP BY 1", *(t.astimezone(timezone.utc).isoformat() for t in (start, end)))
+        heat = [(20 - t, guide_at(datetime.fromtimestamp(h * 3600, timezone.utc), t))
+                for h, t in hours if t is not None and t < house.HEATING_BELOW_C]
+        guide = sum(q for q, _ in heat) / sum(q / c for q, c in heat) if heat else None   # heat-weighted
+        periods.append((start, end, measured, guide, measured / guide if guide else house.COP_SCALE_DEFAULT))
+
+    def cop(when, t_out):
+        inside = next((p for p in periods if p[0] <= when < p[1]), None)
+        before = [p for p in periods if p[1] <= when]
+        nearest = inside or (before[-1] if before else periods[0] if periods else None)
+        scale = nearest[4] if nearest else house.COP_SCALE_DEFAULT
+        return scale * guide_at(when, t_out), inside is not None
+    return cop, periods
 
 
 def hourly(db_path, since):
@@ -173,7 +257,7 @@ def hourly(db_path, since):
                              since))
         sunshine.update(rows(db, f"SELECT {HOURLY}, rad_wm2 FROM knmi_hourly WHERE ts_utc >= ? "
                                  "AND rad_wm2 IS NOT NULL", since))
-        steps = cop_steps(rows(db, "SELECT ts_utc, note FROM events WHERE note LIKE '%counters:%' ORDER BY ts_utc"))
+        cop_at, _ = cop_model(db)
         jumps = rows(db, STEPS, since, *HEATER_W)
     if not power:
         return []
@@ -207,10 +291,9 @@ def hourly(db_path, since):
         if minutes < 50 or len(temp) < 3 or other["outdoors"] is None:
             continue                                          # an hour needs power, both levels and outdoors
         when = datetime.fromtimestamp(hour * 3600, timezone.utc)
-        logged = next((c for start, c in reversed(steps) if start <= when), None)   # newest reading before
-        cop = logged or house.COP_DEFAULT
+        cop, measured = cop_at(when, other["outdoors"])
         fill = 60 / minutes / 1000                            # Wh over the logged minutes -> kWh for the hour
-        row = {"when": when, "cop": cop, "cop_logged": logged is not None,
+        row = {"when": when, "cop": cop, "cop_logged": measured,
                "t_in": temp["house"], "t_out": other["outdoors"],
                "heat_pump": cop * hp_wh * fill, "appliances": (total_wh - hp_wh - hot_wh) * fill,
                "hot_water": hot_wh * fill, "l1": l1_wh * fill,
@@ -248,8 +331,11 @@ def daily(db_path, hours):
         out["day"].append(day)
         out["hours"].append(len(group))
         out["cop_logged"].append(all(row["cop_logged"] for row in group))
-        for key in ("t_in", "t_out", "cop"):
+        for key in ("t_in", "t_out"):
             out[key].append(round(sum(row[key] for row in group) / len(group), 2))
+        heat = sum(row["heat_pump"] for row in group)          # the day's COP: its heat over its electricity
+        out["cop"].append(round(heat / sum(row["heat_pump"] / row["cop"] for row in group), 2) if heat
+                          else round(sum(row["cop"] for row in group) / len(group), 2))
         for key, value in sums.items():
             out[key].append(value)
         out["left_over"].append(round(sum(sums[k] or 0 for k in IN) - sum(sums[k] for k in OUT), 2))
@@ -271,8 +357,9 @@ def forecast(db_path, days=3):
         heat pump heat = W/K x (inside - forecast outdoor) - appliances and people - forecast sun
         L1 electricity = heat / COP + L1's other loads (hot water, kitchen), both from the same days
 
-    Inside temperature, gains, COP and L1's other loads are those days' means; no storage in floors
-    and walls, so read the result over several hours, not hour by hour."""
+    The COP follows the forecast outdoor temperature (cop_model). Inside temperature, gains and L1's
+    other loads are those days' means; no storage in floors and walls, so read the result over
+    several hours, not hour by hour."""
     now = datetime.now(timezone.utc)
     since = (now - timedelta(days=days + 1)).astimezone(LOCAL).replace(hour=0, minute=0, second=0, microsecond=0)
     by_day = defaultdict(list)
@@ -287,6 +374,7 @@ def forecast(db_path, days=3):
         weather = rows(db, "SELECT ts_utc, temp_c, rad_wm2 FROM forecast WHERE issued_utc = ? AND ts_utc >= ? "
                            "ORDER BY ts_utc", issued[0][0] if issued else None,
                        (now - timedelta(hours=1)).isoformat())
+        cop_at, periods = cop_model(db)
     if not use:
         out["model"] = {"why": "needs a whole day with power, rooms, outdoor and sun data"}
         return out
@@ -299,9 +387,11 @@ def forecast(db_path, days=3):
     w_per_k = per_kelvin(hours)
     gains = mean(lambda row: row["appliances"] + row["people"])
     l1_other = mean(lambda row: row["l1"] - row["heat_pump"] / row["cop"])
-    t_in, cop = mean(lambda row: row["t_in"]), hours[-1]["cop"]
+    t_in, cops = mean(lambda row: row["t_in"]), []
     for ts, temp, rad in weather:
         when = datetime.fromisoformat(ts)
+        cop = cop_at(when, temp)[0]
+        cops.append(cop)
         sun = sum(hole * on_facade(rad or 0, when - timedelta(minutes=30), facing)   # rad: the hour before ts
                   for facing, hole in house.SUN_HOLES.items()) / 1000
         heat = max(0.0, w_per_k * (t_in - temp) - gains - sun)
@@ -311,18 +401,40 @@ def forecast(db_path, days=3):
         out["l1_kw"].append(round(heat / cop + l1_other, 3))
     daily_w_per_k = [1000 * per_kelvin(group) for group in use]
     out["model"] = {"w_per_k": round(1000 * w_per_k), "range": [round(min(daily_w_per_k)), round(max(daily_w_per_k))],
-                    "days": len(use), "t_in": round(t_in, 1), "gains_kw": round(gains, 2), "cop": round(cop, 2),
+                    "days": len(use), "t_in": round(t_in, 1), "gains_kw": round(gains, 2),
+                    "cop": [round(min(cops), 2), round(max(cops), 2)] if cops else None,
+                    "cop_scale": round(periods[-1][4] if periods else house.COP_SCALE_DEFAULT, 2),
                     "l1_other_kw": round(l1_other, 2),
                     "issued": datetime.fromisoformat(issued[0][0]).astimezone(LOCAL).strftime("%Y-%m-%d %H:%M")
                     if weather else None}
     return out
 
 
+def show_cop(db_path):
+    """The COP model on the command line: how each counter period compares with the guide, and the COP
+    at each outdoor temperature for the heat curve in force now."""
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)) as db:
+        cop_at, periods = cop_model(db)
+        _, curve, max_flow = settings(rows(db, "SELECT ts_utc, note FROM events ORDER BY ts_utc"))[-1]
+    print("COP = scale x the installer guide's COP at the flow your heat curve asks for.\n")
+    print("counter period        measured  guide  scale")
+    for start, end, measured, guide, scale in periods:
+        print(f"{start.astimezone(LOCAL):%d %b %H:%M} - {end.astimezone(LOCAL):%d %b}   {measured:5.2f}  "
+              f"{'  -  ' if guide is None else f'{guide:5.2f}'}  {scale:5.2f}")
+    print(f"\nNow: heat curve {curve:.2f}, max flow {max_flow:.0f} °C\noutdoor °C  flow °C   COP")
+    now = datetime.now(timezone.utc)
+    for t_out in range(-8, 15, 2):
+        print(f"{t_out:9d}  {flow_temperature(t_out, curve, max_flow):7.1f}  {cop_at(now, t_out)[0]:5.2f}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--days", type=int, default=14)
     parser.add_argument("--db", default="p1.sqlite")
+    parser.add_argument("--cop", action="store_true", help="show the COP model: each counter period, and a table")
     args = parser.parse_args()
+    if args.cop:
+        return show_cop(args.db)
     b = daily(args.db, 24 * args.days)
     if not b["day"]:
         raise SystemExit("No day has power, room temperatures and outdoor temperature together yet.")

@@ -106,14 +106,16 @@ python3 knmi_hourly.py                        # first run backfills from Sep 202
 (crontab -l; echo '25 */6 * * * cd ~/p1-logger && python3 knmi_hourly.py >> knmi.log 2>&1') | crontab -
 python3 balance.py --days 7                   # the balance as a table; the page is /balance.html
 python3 house.py                              # the areas and U-values it uses
+python3 balance.py --cop                      # the COP model: each counter period, and COP per outdoor °C
 ```
 
-The balance turns the heat pump's electricity into heat with a COP. Read the two "this month"
-counters on the Vaillant controller now and then, and log them; the balance then uses the measured
-COP between two readings instead of its default:
+The balance turns the heat pump's electricity into heat with a COP that follows the outdoor
+temperature: the installer guide's COP at the flow temperature your heat curve asks for, scaled to
+what the Vaillant's counters measured. Read the two "this month" counters about once a week, and
+before every heat-curve change, and log them with your own numbers:
 
 ```bash
-python3 note.py "counters: heating=253 yield=319"
+python3 note.py --counters                    # asks for the two numbers
 ```
 
 ### Weather forecast: dashed lines on the live view
