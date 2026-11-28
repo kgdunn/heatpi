@@ -345,6 +345,20 @@ There is no car charger, air conditioner or dehumidifier.
 - `house.ESTIMATED = {"neighbour NW": 0.40}` puts this into the balance as an estimated term
   ("to the NW neighbour"). A probe on the wall should replace it.
 
+**Infrared, NW wall in the basement (28 Nov, late morning, same thermometer):** 16 °C on average at
+4 spots, room 18 °C. The documents give 80-100 mm PIR between studs (U 0.28): then the wall would
+read within about 0.3 K of the room.
+
+- Heat into the wall = 7.7 W/m²K x 2 K = 15 W/m², x 21 m² = about 0.32 kW (±0.08 kW per 0.5 K of
+  reading error).
+- With the NW house at 0.40 of the way from outdoors to us (as on the living level; outdoors about
+  0-2 °C, so 7-8 °C), that is U 1.4-1.6: an uninsulated or badly bridged wall, not PIR.
+  `house.py` now has U 1.5 ("est"): +26 W/K, of which about 15 W/K follows the outdoor temperature.
+  It brings house.py closer to the 178 W/K that `signature.py` found.
+- To tell missing insulation from bridging: a line of readings every 15 cm across 1.2 m at
+  shoulder height. Cold stripes about 60 cm apart are studs (insulation there, but bridged); an
+  even 2 K under the room is no insulation.
+
 **Real numbers, 21 to 23 Nov** (COP 2.85, NW neighbour at 0.40, live sunshine):
 
 - Explained: 67 % on the 21st, 86 % on the 22nd, 60 % in the first 7 hours of the 23rd. All 54 hours
@@ -376,8 +390,9 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
 3. Overdue: both Vaillant counters (`python3 note.py --counters`), about once a week and before
    every curve change (last: 22 Nov, 385 and 563 kWh).
 4. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
-   and the living-room ceiling (the home above), and the NW wall in the basement (insulated: it
-   should read near room temperature). The side walls of the living level are done.
+   and the living-room ceiling (the home above), the SE wall in the basement (4 spots, like the NW
+   one), and a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?).
+   Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
 5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
 6. Does the bedroom share a wall or door with the technical room (buffer tank, hot-water vat)? It
