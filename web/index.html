@@ -14,6 +14,7 @@
   select, button { font: inherit; padding: 4px 8px; }
   header a { color: #1c5cab; font-size: 14px; }
   #status { color: #6b6a66; font-size: 13px; margin-left: auto; }
+  #status:empty { display: none; }   /* only "Loading…" or an error: no line otherwise */
   #legend { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; font-size: 13px; color: #3d3c39; }
   #legend button { font: inherit; color: inherit; background: none; border: 0; padding: 8px 3px; cursor: pointer; }
   #legend button[aria-pressed="false"] { opacity: 0.35; text-decoration: line-through; }   /* hidden */
@@ -55,7 +56,8 @@
 
 <script>
 // Colour follows the room, never its position (checked for colour-blind separation).
-const ROOM_COLOR = { "Badkamer": "#2a78d6", "Bedroom": "#eb6834", "Logeer": "#1f9e89", "Living Room": "#b0389b" };
+const ROOM_COLOR = { "Badkamer": "#2a78d6", "Bedroom": "#eb6834", "Logeer": "#1f9e89", "Living Room": "#b0389b",
+                     "BnB": "#8a6d00" };            // BnB: the home above, from its tado
 const UPSTAIRS = new Set(["Living Room"]);
 const NEUTRAL = "#5b5a56", LIGHT = "#a3a29d", PRIOR = "#f0a6c6";   // PRIOR: light pink, a day earlier
 const KNMI = "#6da7ec";                            // light blue: the official station, next to the grey street line
@@ -147,9 +149,7 @@ const optional = (name, hours, empty) =>
 const axis = i => (i === 0 ? "" : String(i + 1));  // panel i -> Plotly axis suffix
 const panelTitle = (i, text) => ({ text, xref: `x${axis(i)} domain`, yref: `y${axis(i)} domain`,
                                    x: 0, y: 1.02, showarrow: false, xanchor: "left", yanchor: "bottom" });
-// "21 Nov at 08:00": whole hours (rounded down), no weekday.
 const two = n => String(n).padStart(2, "0");
-const when = d => `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })} at ${two(d.getHours())}:00`;
 
 // Legend entries are buttons: tap one to hide or show its lines. The choice is remembered on this
 // device (browser storage; if that is unavailable, it simply lasts until the page reloads).
@@ -278,7 +278,7 @@ function showVersion(v) {
 
 function render() {
   if (!data) return;
-  const { hours, start, end, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise, fc } = data;
+  const { hours, start, end, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise, fc, bnb, tado } = data;
   const ahead = projection(energy, fc);
   const cumulative = hpMode === "kwh";
   const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
@@ -288,7 +288,7 @@ function render() {
   // Legend as page text, set first so the header has its final height before Plotly measures the space.
   // Rooms in panel order: downstairs (left panel) first, then upstairs (right panel), A-Z within each.
   const rooms = [...zones.keys()].sort((a, b) => UPSTAIRS.has(a) - UPSTAIRS.has(b) || a.localeCompare(b));
-  const legend = rooms.map(n => legendKey(n, n, `<i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>`));
+  const legend = [...rooms, ...bnb.keys()].map(n => legendKey(n, n, `<i style="border-color:${ROOM_COLOR[n] ?? NEUTRAL}"></i>`));
   // A group label stays on the same line as its keys.
   const group = (label, keys) => `<span class="group"><span>${label}</span>${keys.join("")}</span>`;
   const outdoorKeys = [legendKey("street", "street", `<b class="dot"></b>`)];
@@ -300,14 +300,15 @@ function render() {
   document.getElementById("legend").innerHTML = legend.join("");
 
   // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit;
-  // 4: technical room, full width. Its noise sits on the base axis y5 (right) and its temperature on
-  // y6, which overlays y5 (left): Plotly draws an overlaying axis on top, so the line stays above the
-  // shaded noise.
+  // 4: technical room; 5: the BnB above, on its own scale. The technical room's noise sits on the base
+  // axis y5 (right) and its temperature on y7, which overlays y5 (left): Plotly draws an overlaying axis
+  // on top, so the line stays above the shaded noise.
   const traces = [];
   for (const name of rooms) {
     traces.push(...roomTraces(name, zones.get(name), UPSTAIRS.has(name) ? 1 : 0));
     if (fc.rooms?.[name]) traces.push(...roomForecastTraces(name, fc.rooms[name], UPSTAIRS.has(name) ? 1 : 0));
   }
+  for (const [name, z] of bnb) traces.push(...roomTraces(name, z, 5));
   traces.push(
     { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
@@ -335,22 +336,23 @@ function render() {
     { ...noiseLine, name: "Noise", xaxis: "x5", yaxis: "y5",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
       hovertemplate: "Noise: %{y:.0f} raw (0-4095)<extra></extra>" },
-    { ...smooth(tech.time, tech.temp_c, TECH_SMOOTH_HOURS), name: "Technical room", xaxis: "x5", yaxis: "y6",
+    { ...smooth(tech.time, tech.temp_c, TECH_SMOOTH_HOURS), name: "Technical room", xaxis: "x5", yaxis: "y7",
       line: { color: NEUTRAL, width: 2 }, hovertemplate: "Technical room: %{y:.1f} °C<extra></extra>" });
 
-  // Three rows: rooms, then outdoor and heat pump, then the technical room across the full width.
+  // Three rows: rooms, then outdoor and heat pump, then the BnB and the technical room.
   const width = document.getElementById("plots").clientWidth - 72;
   const COLS = [[0, 0.45], [0.55, 1]], GAP = 0.1, H = (1 - 2 * GAP) / 3;
   const row = r => [1 - (r + 1) * H - r * GAP, 1 - r * H - r * GAP];
-  const panels = [[COLS[0], row(0)], [COLS[1], row(0)], [COLS[0], row(1)], [COLS[1], row(1)], [[0, 1], row(2)]];
+  const panels = [[COLS[0], row(0)], [COLS[1], row(0)], [COLS[0], row(1)], [COLS[1], row(1)], [COLS[1], row(2)],
+                  [COLS[0], row(2)]];
   const layout = {
     annotations: [panelTitle(0, "<b>Downstairs</b> °C" + note(evohome, "evohome")),
                   panelTitle(1, "<b>Living room</b> (upstairs) °C" + note(evohome, "evohome")),
                   panelTitle(2, "<b>Outdoor</b> °C" + note(outdoor, "street")),
                   { ...panelTitle(3, (cumulative ? "<b>Heat pump L1</b> kWh/day ⇄" : "<b>Heat pump L1</b> kW ⇄") +
                                      note(cumulative ? energy : power, "meter")), captureevents: true },  // tap: switch
-                  panelTitle(4, `<b>Technical room</b>, smoothed: ${tech.time.length ? "°C line, left" : missing(tech, "temperature")}` +
-                                ` · ${noise.time.length ? "noise shaded, right" : missing(noise, "noise")}`)],
+                  panelTitle(4, "<b>Technical room</b> °C" + note(tech, "temperature")),   // noise: shaded, right axis
+                  panelTitle(5, "<b>BnB</b> (above) °C" + note(tado, "tado"))],
     margin: { t: 24, r: 36, b: 28, l: 36 }, showlegend: false,
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
     uirevision: view,                              // a zoom survives only the 5-min auto-refresh
@@ -381,7 +383,7 @@ function render() {
                                           y0: 0, y1: 1, layer: "below", line: { color: LIGHT, width: 1 } }));
   const noiseRange = robustRange(noiseLine.y);
   Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, autorange: !noiseRange, range: noiseRange });
-  layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5", autorange: true };
+  layout.yaxis7 = { overlaying: "y5", side: "left", anchor: "x5", autorange: true };
   const plots = document.getElementById("plots");
   Plotly.react(plots, traces, layout, { responsive: true, displayModeBar: false });
   if (!plots.listening) {                        // once: Plotly gives the div .on() at its first plot
@@ -395,7 +397,7 @@ async function load() {
   const status = document.getElementById("status");
   try {
     const none = { time: [], temp_c: [] };
-    const [zones, outdoor, energy, power, knmi, tech, noise, version, fc] = await Promise.all([
+    const [zones, outdoor, energy, power, knmi, tech, noise, version, fc, tado] = await Promise.all([
       optional("zones", span, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
       optional("outdoor", span, none),
       optional("energy", span, { time: [], kwh: [] }),
@@ -404,15 +406,15 @@ async function load() {
       optional("room", span, none),                          // optional sensors: an empty panel, not an error
       optional("loudness", span, { time: [], mean: [] }),
       fetch("/api/version").then(r => r.json()).catch(() => ({})),
-      optional("forecast", 48, { time: [], temp_c: [], l1_kw: [] })]);   // forecast_logger.py + balance.forecast
+      optional("forecast", 48, { time: [], temp_c: [], l1_kw: [] }),     // forecast_logger.py + balance.forecast
+      optional("tado", span, { time: [], zone: [], temp_c: [], setpoint_c: [] })]);   // tado_logger.py
     // The window: the last `hours`, and a quarter of that (at least 6 h) of forecast when there is one.
     const now = new Date(), start = now - hours * HOUR, ahead = fc.time.length ? Math.max(6, hours / 4) : 0;
-    status.textContent = `${when(new Date(start))} to now${ahead ? ` + ${ahead} h forecast` : ""} · ` +
-                         `${history(hours) / 24} days more behind · updated ${two(now.getHours())}:${two(now.getMinutes())}`;
+    status.textContent = "";
     showVersion(version);                                    // before render: the header's final height
     const prior = hours <= 24 ? priorDay(energy, start) : { time: [], kwh: [] };
     data = { hours, start, end: now.getTime() + ahead * HOUR, zones: byZone(zones), evohome: zones, outdoor, knmi, energy,
-             prior, power, tech, noise, fc };
+             prior, power, tech, noise, fc, bnb: byZone(tado), tado };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;

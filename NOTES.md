@@ -90,6 +90,9 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   same way. On clear nights the airfield reads about 2 K colder than the street sensors.
 - **Range selector and Refresh:** the status says "Loading" at once and the plots dim until the
   new data is drawn; the Pi needs a few seconds for several days.
+- **BnB panel** (28 Nov): the home above's tado temperature and setpoint, bottom left on its own
+  scale; the technical room moved to the bottom right. The header no longer shows the time range
+  ("27 Nov at 11:00 to now ..."): only "Loading" or an error, to save a line on the phone.
 - **Forecast** (28 Nov): `forecast_logger.py` stores KNMI's HARMONIE forecast every hour (48 h
   ahead). The live view draws, dashed and to the right of a line at now: the forecast outdoor
   temperature, and the heat pump's L1 kW, or its kWh since midnight carried to each midnight with
