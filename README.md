@@ -15,7 +15,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `knmi_temp.py` | KNMI Rotterdam every 10 min (EDR API, free key in `~/.knmi`): air temperature, and sunshine, wind, rain and soil temperature for the heat balance | cron, every 10 min | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | KNMI Rotterdam per hour, no key: sunshine, wind, rain (about 2 days late) | cron, every 6 h | `knmi_hourly` |
 | `forecast_logger.py` | The weather forecast for the house (KNMI's HARMONIE model via Open-Meteo, no key): temperature and sunshine for the next 48 h, every hour | cron, hourly | `forecast` |
-| `tado_logger.py` | The home above's tado X (cloud API, read only): temperature, humidity, setpoint and heating demand per room. Token in `~/.tado` after a one-time `--login` | cron, every 20 min | `tado` |
+| `tado_logger.py` | The home above's tado X (cloud API, read only): temperature, humidity, setpoint, heating demand, open window and the next scheduled change per room, with tado's whole answer kept as JSON; the weekly schedule once a day. Token in `~/.tado` after a one-time `--login` | cron, every 20 min | `tado`, `tado_schedule` |
 | `bnb_calendar.py` | The home above's booking calendar (its iCal export, link in `~/.airbnb_ical`): the dates with guests, nothing about them | cron, every 6 h | `bookings` |
 | `compare_temps.py` | One-off check: our sensor vs KNMI Rotterdam, with a chart | by hand | – |
 | `hp_check.py` | Heat pump runs, starts and kWh per day, with an hourly map | by hand | – |
