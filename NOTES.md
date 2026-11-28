@@ -458,34 +458,41 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    (zone, readings, mean v2 − v1, min, max, share beyond 0.25 K).
 3. Overdue: both Vaillant counters (`python3 note.py --counters`), about once a week and before
    every curve change (last: 22 Nov, 385 and 563 kWh).
-4. Surface temperatures with the same infrared thermometer, on a cold morning, best while the home
+4. To do, ventilation (Itho Daalderop HRU ECO 350, heat recovery measured at about 73 %): replace or
+   clean the filters; check that the summer bypass is closed and that supply and extract flows
+   are balanced (the unit's settings); insulate the two bare ducts to and from our rooms in the
+   cold cupboard (about 80 W per metre of both; measure their length and diameter first); note
+   the flow setting in m3/h. Log each step with `note.py`.
+5. To do, the home above: a HomeWizard P1 on its own smart meter, reachable from the Pi. Its gas
+   is the boiler's heat input, so with the tado temperature the home above gets its own heat
+   balance, and the ceiling between us can be measured both ways. `p1_logger.py` then needs a
+   second meter (host and token).
+6. Surface temperatures with the same infrared thermometer, on a cold morning, best while the home
    above is cold: the kitchen ceiling, with the top of an inner wall as reference (the living-room
    ceiling read 17.8 °C on 28 Nov), the SE wall in the basement (4 spots, like the NW
    one), the technical room's front and party walls (to replace their guessed U in `house.py`),
    a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?), and the
    top and bottom of an inner wall of the bedroom (the room air's own top-to-bottom difference).
    Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
-5. Ventilation: the air temperature in the air stream at one supply vent and one extract valve
+7. Ventilation: the air temperature in the air stream at one supply vent and one extract valve
    (bathroom or kitchen), with a thermometer, not infrared, on a cold day, with the time.
-6. Is there insulation between the living level's floor-heating pipes and the bedroom ceiling
+8. Is there insulation between the living level's floor-heating pipes and the bedroom ceiling
    below them? (The technical room is 2.10 x 1.80 m: split out in `house.py`, 28 Nov.)
-7. Does the myVAILLANT app show the heat pump (an internet gateway, sensoNET or VR 921)? Then its
+9. Does the myVAILLANT app show the heat pump (an internet gateway, sensoNET or VR 921)? Then its
    daily electricity and environmental yield can be read by a script, instead of the counters by
    hand (question 3), and the eBUS adapter may not be needed for them.
-8. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
-   the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
-9. Ventilation unit (Itho Daalderop HRU ECO 350): its flow setting in m3/h, and the length and
-   diameter of the two bare ducts (to and from our rooms) in the cold cupboard.
-10. Heat pump (the plate says VWL 105, 10 kW): the buffer's litres, and whether a return
-   temperature and a flow rate can be read anywhere (the flow temperature can).
-11. The back windows and doors of the basement: glass type and sizes.
-12. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
+10. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
+    the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
+11. Heat pump (the plate says VWL 105, 10 kW): the buffer's litres, and whether a return
+    temperature and a flow rate can be read anywhere (the flow temperature can).
+12. The back windows and doors of the basement: glass type and sizes.
+13. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
     chimney breast)? It covers part of the 30 m².
-13. In winter, from when to when does direct sun reach the back windows?
-14. Hot-water heater: the litres on its plate.
-15. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
+14. In winter, from when to when does direct sun reach the back windows?
+15. Hot-water heater: the litres on its plate.
+16. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
     minutes at meal times?
-16. Decisions: the eBUS adapter, the probes (the home above's air probe may no longer be needed
+17. Decisions: the eBUS adapter, the probes (the home above's air probe may no longer be needed
     with the tado), and a cable route from the technical room to the living level.
 
 **KNMI hourly API:** in `start=YYYYMMDDHH&end=YYYYMMDDHH` the hour is a range within each day, not
