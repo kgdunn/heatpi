@@ -98,6 +98,10 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   same way. On clear nights the airfield reads about 2 K colder than the street sensors.
 - **Range selector and Refresh:** the status says "Loading" at once and the plots dim until the
   new data is drawn; the Pi needs a few seconds for several days.
+- **Stale server** (28 Nov): the BnB panel said "tado: HTTP 404": the page was new (web/ is read
+  fresh) but the dashboard process still ran code from before the `tado` query, because a restart
+  in `update.sh` had not happened. The header now says "Server needs a restart" when the server's
+  own files changed since it started, and `update.sh` says loudly when a restart fails.
 - **BnB panel** (28 Nov): the home above's tado temperature and setpoint, bottom left on its own
   scale; the technical room moved to the bottom right. The header no longer shows the time range
   ("27 Nov at 11:00 to now ..."): only "Loading" or an error, to save a line on the phone.
