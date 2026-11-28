@@ -198,18 +198,34 @@ function dailyEnergy(e) {
   return { x, y, totals };
 }
 
-// The 24 h view fetches 48 h of energy and splits it: the last 24 h as usual, and the 24 h before,
-// moved one calendar day later (same clock time; right across a summer/winter time change) to lie
-// under today's line in pink. Both reset at midnight, so at any moment you compare "kWh so far"
-// with the same moment a day earlier.
-function splitPrior(e, cutoffMs) {
-  const cutoff = toLocal(cutoffMs), now = { time: [], kwh: [] }, prior = { time: [], kwh: [] };
+// The 24 h view also shows the 24 h before the window, moved one calendar day later (same clock time;
+// right across a summer/winter time change) to lie under today's line in pink. Both reset at midnight,
+// so at any moment you compare "kWh so far" with the same moment a day earlier.
+function priorDay(e, cutoffMs) {
+  const from = toLocal(cutoffMs - 24 * HOUR), cutoff = toLocal(cutoffMs), prior = { time: [], kwh: [] };
   e.time.forEach((t, i) => {
-    if (t >= cutoff) { now.time.push(t); now.kwh.push(e.kwh[i]); return; }
+    if (t < from || t >= cutoff) return;
     const d = new Date(t.replace(" ", "T")); d.setDate(d.getDate() + 1);
     prior.time.push(toLocal(d.getTime())); prior.kwh.push(e.kwh[i]);
   });
-  return { now, prior };
+  return prior;
+}
+
+// Each view loads more than it shows, so dragging the time axis back reaches earlier days: twice the
+// window (2 days for the 24 h view), at most a week. The page opens on the newest `hours`.
+const history = hours => Math.min(2 * hours, 168);
+
+// The window drawn: the newest `hours`, unless the user dragged or zoomed since the last draw of this
+// view; then theirs stays, also through the 5-minute refresh. A new range or Refresh starts over.
+let drawnView = -1, autoWindow = null;
+function xWindow(start, end) {
+  const shown = document.getElementById("plots").layout?.xaxis?.range?.map(v => new Date(String(v).replace(" ", "T")).getTime());
+  const moved = view === drawnView && shown && autoWindow &&
+                Math.abs(shown[0] - autoWindow[0]) + Math.abs(shown[1] - autoWindow[1]) > 60e3;
+  drawnView = view;
+  if (moved) return shown.map(toLocal);
+  autoWindow = [start, end];
+  return autoWindow.map(toLocal);
 }
 
 // "Code update / 21 Nov 12:30 UTC": when the code the Pi runs was committed (hover: hash and message).
@@ -223,7 +239,7 @@ function showVersion(v) {
 
 function render() {
   if (!data) return;
-  const { hours, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise } = data;
+  const { hours, start, end, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise } = data;
   const cumulative = hpMode === "kwh";
   const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
   const daily = dailyEnergy(energy), before = dailyEnergy(prior);
@@ -289,22 +305,25 @@ function render() {
     hovermode: "x unified", paper_bgcolor: "#fcfcfb", plot_bgcolor: "#fcfcfb",
     uirevision: view,                              // a zoom survives only the 5-min auto-refresh
   };
+  const range = xWindow(start, end);
   panels.forEach(([xDomain, yDomain], i) => {
     layout["xaxis" + axis(i)] = { ...timeAxis(hours, width * (xDomain[1] - xDomain[0])), domain: xDomain,
-                                  anchor: "y" + axis(i), matches: i ? "x" : undefined };
-    layout["yaxis" + axis(i)] = { domain: yDomain, anchor: "x" + axis(i) };
+                                  anchor: "y" + axis(i), matches: i ? "x" : undefined, ...(i ? {} : { range }) };
+    // autorange said out loud: with a range on the shared time axis, Plotly otherwise leaves it off.
+    layout["yaxis" + axis(i)] = { domain: yDomain, anchor: "x" + axis(i), autorange: true };
   });
   Object.assign(layout.yaxis2, { matches: "y" });
   const peak = Math.max(0, ...daily.totals.map(([, kwh]) => kwh), ...before.totals.map(([, kwh]) => kwh));
-  Object.assign(layout.yaxis4, cumulative ? { range: [0, 1.15 * peak || 1] }    // headroom for the day totals
+  Object.assign(layout.yaxis4, cumulative ? { autorange: false, range: [0, 1.15 * peak || 1] }   // headroom for the totals
                                           : { autorange: true, rangemode: "tozero" });
-  // Each day's total at the end of its line, when the panel has room (about 32 px per day).
-  if (cumulative && width * 0.45 / daily.totals.length >= 32)
+  // Each day's total at the end of its line, when the panel has room (about 32 px per day in view).
+  if (cumulative && width * 0.45 / (hours / 24 + 1) >= 32)
     for (const [t, kwh] of daily.totals)
       layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: kwh.toFixed(1), showarrow: false,
                                 xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#3d3c39" } });
-  Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, range: robustRange(noiseLine.y) });
-  layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5" };
+  const noiseRange = robustRange(noiseLine.y);
+  Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, autorange: !noiseRange, range: noiseRange });
+  layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5", autorange: true };
   const plots = document.getElementById("plots");
   Plotly.react(plots, traces, layout, { responsive: true, displayModeBar: false });
   if (!plots.listening) {                        // once: Plotly gives the div .on() at its first plot
@@ -314,26 +333,25 @@ function render() {
 }
 
 async function load() {
-  const hours = Number(document.getElementById("hours").value);
+  const hours = Number(document.getElementById("hours").value), span = hours + history(hours);
   const status = document.getElementById("status");
   try {
     const none = { time: [], temp_c: [] };
     const [zones, outdoor, energy, power, knmi, tech, noise, version] = await Promise.all([
-      optional("zones", hours, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
-      optional("outdoor", hours, none),
-      optional("energy", hours <= 24 ? 2 * hours : hours, { time: [], kwh: [] }),   // 24 h view: + the day before
-      optional("power", hours, { time: [], total_w: [], l1_w: [] }),      // for the kW view of the heat pump
-      optional("knmi", hours, none),                         // only once knmi_temp.py runs
-      optional("room", hours, none),                         // optional sensors: an empty panel, not an error
-      optional("loudness", hours, { time: [], mean: [] }),
+      optional("zones", span, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
+      optional("outdoor", span, none),
+      optional("energy", span, { time: [], kwh: [] }),
+      optional("power", span, { time: [], total_w: [], l1_w: [] }),       // for the kW view of the heat pump
+      optional("knmi", span, none),                          // only once knmi_temp.py runs
+      optional("room", span, none),                          // optional sensors: an empty panel, not an error
+      optional("loudness", span, { time: [], mean: [] }),
       fetch("/api/version").then(r => r.json()).catch(() => ({}))]);
-    const now = new Date();
-    status.textContent = `${when(new Date(now - hours * HOUR))} to ${when(now)} · updated ` +
-                         `${two(now.getHours())}:${two(now.getMinutes())}`;
+    const now = new Date(), start = now - hours * HOUR;
+    status.textContent = `${when(new Date(start))} to ${when(now)} · drag back for ${history(hours) / 24} days more · ` +
+                         `updated ${two(now.getHours())}:${two(now.getMinutes())}`;
     showVersion(version);                                    // before render: the header's final height
-    const split = splitPrior(energy, now - hours * HOUR);
-    const prior = hours <= 24 ? split.prior : { time: [], kwh: [] };
-    data = { hours, zones: byZone(zones), evohome: zones, outdoor, knmi, energy: { ...energy, ...split.now }, prior, power, tech, noise };
+    const prior = hours <= 24 ? priorDay(energy, start) : { time: [], kwh: [] };
+    data = { hours, start, end: now.getTime(), zones: byZone(zones), evohome: zones, outdoor, knmi, energy, prior, power, tech, noise };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
