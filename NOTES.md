@@ -242,6 +242,17 @@ rain) and the page `/balance.html`.
 - The ventilation unit sits in a cold cupboard in the home above, with bare ducts. Insulating the
   supply and extract ducts is the first fix to test: measure the recovery at a supply vent,
   (supply − outdoor) / (room − outdoor), before and after.
+- **Ventilation unit, infrared 28 Nov about 11:45** (Itho Daalderop HRU ECO 350): the cupboard's
+  surfaces 8 °C; back-left duct (to our rooms, after the heat exchanger) 16 °C; front-right duct
+  (from our rooms) 21.5 °C; back-right fully insulated, to outdoors. Outdoors about −0.5 °C.
+  Recovery = (16 + 0.5) / (21.5 + 0.5) = 75 %. But 21.5 °C is warmer than any room (17.7-19 °C):
+  the extract carries bathroom or kitchen air, or the reading on bare metal is off. With the rooms'
+  18.5 °C it is 87 %. So 75-87 %; `house.py` keeps 85 % until an air thermometer in the stream at
+  an extract valve and a supply vent settles it.
+- Bare ducts in the 8 °C cupboard: with about 8 W/m²K on a 160 mm duct (0.5 m² per metre), the
+  extract loses about 55 W and the supply about 30 W per metre. 85 % of the extract's loss would
+  have come back through the exchanger, so the house loses about 80 W per metre of both ducts, or
+  very roughly 400 kWh of heat a season (€30-50 at COP 3). The bare length decides the total.
 
 **Known errors in this first version:**
 
@@ -439,8 +450,8 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?), and the
    top and bottom of an inner wall of the bedroom (the room air's own top-to-bottom difference).
    Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
-5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
-   temperature at that moment.
+5. Ventilation: the air temperature in the air stream at one supply vent and one extract valve
+   (bathroom or kitchen), with a thermometer, not infrared, on a cold day, with the time.
 6. Is there insulation between the living level's floor-heating pipes and the bedroom ceiling
    below them? (The technical room is 2.10 x 1.80 m: split out in `house.py`, 28 Nov.)
 7. Does the myVAILLANT app show the heat pump (an internet gateway, sensoNET or VR 921)? Then its
@@ -448,8 +459,8 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    hand (question 3), and the eBUS adapter may not be needed for them.
 8. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
    the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
-9. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
-   cupboard.
+9. Ventilation unit (Itho Daalderop HRU ECO 350): its flow setting in m3/h, and the length and
+   diameter of the two bare ducts (to and from our rooms) in the cold cupboard.
 10. Heat pump (the plate says VWL 105, 10 kW): the buffer's litres, and whether a return
    temperature and a flow rate can be read anywhere (the flow temperature can).
 11. The back windows and doors of the basement: glass type and sizes.
