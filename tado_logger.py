@@ -90,14 +90,24 @@ def pick(data, *keys):
     return data
 
 
+def mode(room):
+    """What sets the setpoint: off, holiday, away, boost, manual or schedule."""
+    if pick(room, "setting", "power") != "ON":
+        return "off"
+    found = (name for key, name in (("holidayMode", "holiday"), ("awayMode", "away"), ("boostMode", "boost"),
+                                    ("manualControlTermination", "manual")) if room.get(key))
+    return next(found, "schedule")
+
+
 def room_rows(rooms, ts):
-    """One row per room: time, name, °C, humidity %, setpoint °C (None when off), heating demand %, power."""
+    """One row per room: time, name, °C, humidity %, setpoint °C (None when off), heating demand %, mode.
+    With an on/off boiler, the heating demand is the share of time tado asks the boiler for heat."""
     for room in rooms:
-        power = pick(room, "setting", "power")
-        yield (ts, room.get("name"), pick(room, "sensorDataPoints", "insideTemperature", "value"),
+        on = mode(room) != "off"
+        yield (ts, (room.get("name") or "").strip(), pick(room, "sensorDataPoints", "insideTemperature", "value"),
                pick(room, "sensorDataPoints", "humidity", "percentage"),
-               pick(room, "setting", "temperature", "value") if power == "ON" else None,
-               pick(room, "heatingPower", "percentage"), power)
+               pick(room, "setting", "temperature", "value") if on else None,
+               pick(room, "heatingPower", "percentage"), mode(room))
 
 
 def main():
@@ -127,7 +137,7 @@ def main():
         return
     db = sqlite3.connect(args.db, timeout=30)
     db.execute("CREATE TABLE IF NOT EXISTS tado (ts_utc TEXT, room TEXT, temp_c REAL, rh REAL, setpoint_c REAL, "
-               "heating_pct REAL, power TEXT, PRIMARY KEY (ts_utc, room))")
+               "heating_pct REAL, mode TEXT, PRIMARY KEY (ts_utc, room))")
     with db:
         db.executemany("INSERT OR IGNORE INTO tado VALUES (?, ?, ?, ?, ?, ?, ?)", room_rows(rooms, ts))
 
