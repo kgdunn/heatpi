@@ -71,8 +71,12 @@ PARTS = [
          "80 mm PIR under the slab; the ground itself insulates too", area=60.0, u=0.20),
     part("NW side wall, living level", "neighbour_nw", "living", "neighbour NW", "est",
          "plaster on 10 cm brick, bare", area=30.0, u=2.4),
-    part("NW side wall, basement", "neighbour_nw", "basement", "neighbour NW", "est",
-         "infrared 28 Nov: 2 K under the room at 4 spots, not the 80-100 mm PIR of the documents", area=21.0, u=1.5),
+    # The NW house starts higher: the lowest 40 % of this wall has soil behind it. Infrared on 28 Nov:
+    # 2 K under the room at 4 spots, not the 80-100 mm PIR of the documents (NOTES.md).
+    part("NW side wall, basement, above soil", "neighbour_nw", "basement", "neighbour NW", "est",
+         "upper 60 %: the NW house behind it; bare or badly bridged", area=12.6, u=1.5),
+    part("NW side wall, basement, in soil", "ground", "basement", "ground", "est",
+         "lower 40 %: soil under the NW house; same wall, so the same U", area=8.4, u=1.5),
     part("SE side wall, living level", "neighbours", "living", "neighbour SE", "est",
          "plaster on 10 cm brick, bare", area=30.0, u=2.4),
     part("SE side wall, basement", "neighbours", "basement", "neighbour SE", "doc",
