@@ -61,7 +61,7 @@ On the Pi itself, read only, so the loggers are never blocked:
 | `knmi_hourly.py` | cron `25 */6 * * *`, no key | `knmi_hourly` |
 | `forecast_logger.py` | cron `5 * * * *`, no key | `forecast` |
 | `frost_rule.py` | cron `*/15 * * * *` in `.venv`, once Kevin adds it | evohome overrides; `events` |
-| `tado_logger.py` | cron `*/20 * * * *` (tado allows 100 calls a day without Auto-Assist: one per run), token in `~/.tado` | `tado` |
+| `tado_logger.py` | cron `*/20 * * * *` (tado allows 100 calls a day without Auto-Assist: one per run, plus one per room a day for the schedule), token in `~/.tado` | `tado`, `tado_schedule` |
 | `bnb_calendar.py` | cron `40 */6 * * *`, link in `~/.airbnb_ical` | `bookings` |
 | `note.py "text"` | by hand; `python3 note.py` lists | `events` |
 
