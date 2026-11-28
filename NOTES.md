@@ -144,6 +144,11 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   and it hardly cools when its setpoint is low. Its change, about 0.1 K/h, is below the 0.5 °C
   steps: hence the v1 readout (`temp_fine_c`, from 28 Nov). Until a fit holds, a room is held at
   its last reading.
+- **v1 readout** (28 Nov): v1 gives 0.1 °C, not the 0.01 °C expected; still 5x finer than v2.
+  First reading: Bedroom v2 18.5 / v1 18.1, Logeer 17.0 / 17.4, Badkamer 18.0 / 17.7, Living
+  Room 18.0 / 17.7. All four differ by 0.3-0.4 K, more than rounding to 0.5 °C allows (0.25 K),
+  and in both directions, so the two APIs do not report the same moment or the same sensor value. Check over a day: if v2
+  were v1 rounded, |v2 − v1| would never exceed 0.25 K.
 - **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
   24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
   view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.

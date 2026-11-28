@@ -12,7 +12,7 @@ Temperature: one room, one state, fitted on the logged hours (`zones`, `street_c
     holding     (at the setpoint):          T stays, unless holding needs more than `rate`
 tau (hours) from the cooling hours, rate (K/h) from the warming hours. No sun, no neighbours, no
 separate floor mass: a first, rough model, and its error over the last day comes with it.
-Readings to 0.01 °C (`temp_fine_c`, the v1 API) are used where they exist, else the 0.5 °C ones.
+Readings to 0.1 °C (`temp_fine_c`, the v1 API) are used where they exist, else the 0.5 °C ones.
 A fit outside 5-500 h or 0.05-3 K/h means the readings could not tell (the room hardly moved): then
 the room is held at its last reading, and `why` says so.
 
