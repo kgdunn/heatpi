@@ -138,6 +138,10 @@ def main():
     db = sqlite3.connect(args.db, timeout=30)
     db.execute("CREATE TABLE IF NOT EXISTS tado (ts_utc TEXT, room TEXT, temp_c REAL, rh REAL, setpoint_c REAL, "
                "heating_pct REAL, mode TEXT, PRIMARY KEY (ts_utc, room))")
+    if "power" in {column[1] for column in db.execute("PRAGMA table_info(tado)")}:
+        with db:    # a table from the first version (28 Nov): `power` (ON/OFF) and room names with a space
+            db.execute("ALTER TABLE tado RENAME COLUMN power TO mode")
+            db.execute("UPDATE tado SET room = trim(room), mode = CASE mode WHEN 'OFF' THEN 'off' END")
     with db:
         db.executemany("INSERT OR IGNORE INTO tado VALUES (?, ?, ?, ?, ?, ?, ?)", room_rows(rooms, ts))
 
