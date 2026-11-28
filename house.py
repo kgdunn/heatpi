@@ -19,6 +19,8 @@ PEOPLE_W = 130                  # body heat of the people at home, averaged over
 HEAT_CURVE, MAX_FLOW_C = 1.00, 45.0
 HEATING_BELOW_C = 16.0          # the Vaillant heats only below this outdoor temperature ("OT switch-off")
 COP_SCALE_DEFAULT = 0.8         # real COP / guide COP before any counters are logged (Nov 2026 gave 0.73-0.84)
+# frost_rule.py: on a night with frost in the forecast, lift this zone's setpoint slots below the floor.
+FROST_RULE = {"zone": "Living Room", "floor": 18.0, "frost": 0.0}
 
 # evohome zone -> (level, floor area in m2 read off the floor plan). Weights the room temperatures.
 ZONES = {"Living Room": ("living", 55), "Bedroom": ("basement", 33),

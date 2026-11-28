@@ -25,6 +25,8 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `leadtime.py` | Warm-up lead time per setpoint step-up, with outdoor temperature and heat-pump power | by hand | – |
 | `insights.py` | Loudness vs heat pump, and energy before/after each logged change | by hand | – |
 | `balance.py` | Heat balance per day: heat in, the losses we can compute, and what is left over | by hand, and in the dashboard | – |
+| `signature.py` | The house's W/K from every whole day on the Pi (energy signature), with its standard error | by hand | – |
+| `rooms.py` | Living room and bedroom, next 48 h: the setpoints evohome will ask (frost rule included) and a rough temperature forecast | by hand, and in the dashboard | – |
 | `house.py` | The house for the balance: every part that loses heat, its area, U-value and where the heat goes | by hand (prints the table) | – |
 | `dashboard.py` + `web/` | Web pages for the iPad: http://heatpi.lan:8080 (live view), `/balance.html` (heat balance) and `/schedule.html` (room schedules). Plotly from a CDN, data as JSON | service `dashboard` | – |
 | `status.sh` | All-in-one check: loggers, data freshness, notes, heat pump, last 6 h | by hand | – |
@@ -107,6 +109,8 @@ python3 knmi_hourly.py                        # first run backfills from Sep 202
 python3 balance.py --days 7                   # the balance as a table; the page is /balance.html
 python3 house.py                              # the areas and U-values it uses
 python3 balance.py --cop                      # the COP model: each counter period, and COP per outdoor °C
+python3 signature.py                          # W/K from every whole day, ± its standard error
+python3 rooms.py                              # the living-room and bedroom models behind the forecast
 ```
 
 The balance turns the heat pump's electricity into heat with a COP that follows the outdoor

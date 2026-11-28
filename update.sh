@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 declare -A SERVICE=([p1_logger.py]=p1-logger [loudness_logger.py]=loudness-logger
                     [room_logger.py]=room-logger [evohome_logger.py]=evohome-logger
                     [dashboard.py]=dashboard
-                    [balance.py]=dashboard [house.py]=dashboard)   # imported by the dashboard
+                    [balance.py]=dashboard [house.py]=dashboard [rooms.py]=dashboard)   # imported by the dashboard
 
 before=$(git rev-parse HEAD)
 git pull --ff-only --quiet
