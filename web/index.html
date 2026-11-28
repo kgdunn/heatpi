@@ -184,6 +184,20 @@ function roomTraces(name, z, panel) {
             visible: shown(name) && shown("setpoint"), line: { color, width: 1.5, shape: "hv", dash: "dot" } }];
 }
 
+// A room's forecast (living room and bedroom only, from rooms.py): the setpoint evohome will ask, dotted,
+// and the temperature from the rough room model, dashed, both in the room's colour.
+function roomForecastTraces(name, f, panel) {
+  const color = ROOM_COLOR[name] ?? NEUTRAL, ax = { xaxis: "x" + axis(panel), yaxis: "y" + axis(panel) };
+  const on = shown(name) && shown("forecast"), rms = f.model?.rms_k;
+  return [{ ...ax, x: f.setpoint.time, y: f.setpoint.value, name: `${name} setpoint, forecast`, mode: "lines",
+            visible: on && shown("setpoint"),
+            line: { color, width: 1.5, dash: "dot" }, hovertemplate: `${name} setpoint, forecast: %{y:.1f} °C<extra></extra>` },
+          { ...ax, x: f.temp.time, y: f.temp.value, name: `${name}, forecast`, mode: "lines", visible: on,
+            line: { color, width: 2, dash: "dash" },
+            hovertemplate: `${name}, forecast: %{y:.1f} °C` + (rms != null ? ` (±${rms.toFixed(1)} K over the last day)` : "") +
+                           "<extra></extra>" }];
+}
+
 // Heat pump: kWh since midnight, back to 0 at 00:00. A gap at each midnight keeps the line from
 // dropping vertically; `totals` holds each day's last value (a whole day's use, or today so far).
 function dailyEnergy(e) {
@@ -289,7 +303,10 @@ function render() {
   // y6, which overlays y5 (left): Plotly draws an overlaying axis on top, so the line stays above the
   // shaded noise.
   const traces = [];
-  for (const name of rooms) traces.push(...roomTraces(name, zones.get(name), UPSTAIRS.has(name) ? 1 : 0));
+  for (const name of rooms) {
+    traces.push(...roomTraces(name, zones.get(name), UPSTAIRS.has(name) ? 1 : 0));
+    if (fc.rooms?.[name]) traces.push(...roomForecastTraces(name, fc.rooms[name], UPSTAIRS.has(name) ? 1 : 0));
+  }
   traces.push(
     { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
@@ -356,7 +373,7 @@ function render() {
   if (cumulative && shown("forecast") && width * 0.45 / (hours / 24 + 1) >= 32)   // a forecast total: "≈ 38"
     for (const [t, kwh] of ahead.totals)
       layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: `≈ ${kwh.toFixed(0)}`, showarrow: false,
-                                xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#6b6a66" } });
+                                xanchor: "center", yanchor: "bottom", font: { size: 11, color: "#6b6a66" } });
   // A thin line at now in every panel: measured to its left, forecast to its right.
   const nowX = toLocal(Date.now());
   layout.shapes = panels.map((_, i) => ({ type: "line", xref: "x" + axis(i), yref: `y${axis(i)} domain`, x0: nowX, x1: nowX,

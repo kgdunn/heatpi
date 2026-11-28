@@ -242,8 +242,9 @@ def cop_model(db):
     return cop, periods
 
 
-def hourly(db_path, since):
-    """One dict per hour with every term in kWh, for hours where power and all temperatures exist."""
+def hourly(db_path, since, inside=None):
+    """One dict per hour with every term in kWh, for hours where power and all temperatures exist.
+    `inside` (°C) stands in for the rooms in hours without room temperatures (before 20 Nov 2026)."""
     with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)) as db:
         power = rows(db, "SELECT CAST(strftime('%s', substr(ts_utc, 1, 16)) AS INTEGER) / 60, avg(power_w), "
                          "avg(power_l1_w) FROM p1 WHERE ts_utc >= ? GROUP BY 1", since)
@@ -275,18 +276,21 @@ def hourly(db_path, since):
             u[3] += heater.get(minute, 0) / 60
             u[4] += (l1 or 0) / 60
 
-    inside = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))   # hour -> level -> area x temp, area
+    rooms = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))    # hour -> level -> area x temp, area
     for hour, zone, temp in zones:
         if zone in house.ZONES and temp is not None:
             level, area = house.ZONES[zone]
             for key in (level, "house"):
-                inside[hour][key][0] += area * temp
-                inside[hour][key][1] += area
+                rooms[hour][key][0] += area * temp
+                rooms[hour][key][1] += area
 
     out = []
     for hour in sorted(used):
         minutes, total_wh, hp_wh, hot_wh, l1_wh = used[hour]
-        temp = {level: weighted / area for level, (weighted, area) in inside[hour].items()}
+        temp = {level: weighted / area for level, (weighted, area) in rooms[hour].items()}
+        measured_in = len(temp) >= 3
+        if not measured_in and inside is not None:
+            temp = dict.fromkeys(("house", "living", "basement"), inside)
         other = {"outdoors": outdoor.get(hour), "ground": house.GROUND_C}
         if minutes < 50 or len(temp) < 3 or other["outdoors"] is None:
             continue                                          # an hour needs power, both levels and outdoors
@@ -294,7 +298,7 @@ def hourly(db_path, since):
         cop, measured = cop_at(when, other["outdoors"])
         fill = 60 / minutes / 1000                            # Wh over the logged minutes -> kWh for the hour
         row = {"when": when, "cop": cop, "cop_logged": measured,
-               "t_in": temp["house"], "t_out": other["outdoors"],
+               "t_in": temp["house"], "t_in_measured": measured_in, "t_out": other["outdoors"],
                "heat_pump": cop * hp_wh * fill, "appliances": (total_wh - hp_wh - hot_wh) * fill,
                "hot_water": hot_wh * fill, "l1": l1_wh * fill,
                "people": house.PEOPLE_W / 1000, "sun": None, **dict.fromkeys(OUT, 0.0)}

@@ -115,9 +115,11 @@ async def override(zone_name, floor, until):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--zone", default="Living Room")
-    parser.add_argument("--floor", type=float, default=18.0, help="lowest setpoint on a frosty night (°C)")
-    parser.add_argument("--frost", type=float, default=0.0, help="act when the forecast falls below this (°C)")
+    parser.add_argument("--zone", default=house.FROST_RULE["zone"])
+    parser.add_argument("--floor", type=float, default=house.FROST_RULE["floor"],
+                        help="lowest setpoint on a frosty night (°C)")
+    parser.add_argument("--frost", type=float, default=house.FROST_RULE["frost"],
+                        help="act when the forecast falls below this (°C)")
     parser.add_argument("--dry-run", action="store_true", help="say what it would do; write nothing")
     parser.add_argument("--db", default=str(HERE / "p1.sqlite"))
     args = parser.parse_args()

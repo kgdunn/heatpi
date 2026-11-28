@@ -53,7 +53,7 @@ On the Pi itself, read only, so the loggers are never blocked:
 | `evohome_logger.py` | service `evohome-logger`, every 10 min, `.venv` (Python 3.13, evohome-async 3.2.2); schedules every 6 h | `zones`, `schedule` |
 | `room_logger.py` | service `room-logger`, DHT22 on GPIO 12, 1/min | `room` |
 | `loudness_logger.py` | service `loudness-logger`, Grove Base Hat A0 (I2C 0x04), 10 Hz → 1/min | `loudness` |
-| `dashboard.py` + `web/` | service `dashboard`, port 8080, read-only; imports `balance.py` and `house.py` | none |
+| `dashboard.py` + `web/` | service `dashboard`, port 8080, read-only; imports `balance.py`, `house.py` and `rooms.py` | none |
 | `outdoor_temp.py && street_consensus.py` | cron `15 * * * *` | `street_temp`, `street_air`, `street_consensus` |
 | `knmi_temp.py` | cron every 10 min, needs the key in `~/.knmi` | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | cron `25 */6 * * *`, no key | `knmi_hourly` |

@@ -56,6 +56,9 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   energy-signature baseline from whole days with more than 95% data coverage.
 - `deviation.py`: room temperature minus setpoint per zone.
 - `leadtime.py`: warm-up time per setpoint step-up.
+- `signature.py`: the house's W/K from every whole day (heat in vs inside − outdoor), with a
+  standard error and an intercept check.
+- `rooms.py`: the living room and bedroom 48 h ahead (setpoints and temperature).
 - `compare_temps.py`: the street sensor vs KNMI.
 - `dblocks.py`: who holds the database's write lock.
 - `status.sh`: all-in-one health check.
@@ -114,6 +117,17 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   With curve 1.00 and scale 0.84 the COP runs from about 3.7 at +8 °C to 2.4 at +2 °C and 1.96
   at −4 °C. On the frosty 27 Nov that brings the fitted W/K from 277 down to roughly 200.
   `python3 balance.py --cop` prints the periods and the curve.
+- **Long-run W/K** (`signature.py`, 28 Nov): every whole day on the Pi, heat in (heat pump x COP
+  model + gains + sun) against inside − outdoor, one line through the origin; days with under 23 h,
+  no sun data, a mean above 12 °C outdoors or a heat-curve change are left out. Before 20 Nov there
+  are no room readings: 19.5 °C stands in (`--inside`). It ignores storage, which evens out over
+  weeks, so it is the number to compare with the 170-180 W/K from the counters, not the 3-day fit.
+- **Room forecasts** (`rooms.py`, 28 Nov): the live view draws, for the living room and the bedroom,
+  the setpoint evohome will ask (the stored schedule; an override until the next switch; the frost
+  rule's lift on frosty nights) dotted, and a forecast of the room dashed. The room model is one
+  state: it cools toward outdoors with a time constant tau and heats at up to `rate` K/h, both fitted
+  on the last 7 days. No sun, no neighbours, no floor mass: the hover gives its error over the last
+  day. This is the first plant model for an MPC.
 - **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
   24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
   view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.
