@@ -86,6 +86,13 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   same way. On clear nights the airfield reads about 2 K colder than the street sensors.
 - **Range selector and Refresh:** the status says "Loading" at once and the plots dim until the
   new data is drawn; the Pi needs a few seconds for several days.
+- **Forecast** (28 Nov): `forecast_logger.py` stores KNMI's HARMONIE forecast every hour (48 h
+  ahead). The live view draws, dashed and to the right of a line at now: the forecast outdoor
+  temperature, and the heat pump's L1 kW, or its kWh since midnight carried to each midnight with
+  "≈ total". The model (`balance.forecast`): heat = W/K x (inside − forecast outdoor) − gains −
+  forecast sun, with W/K fitted so the last 3 whole days close at 100 % (Kevin's lumped
+  parameter); electricity = heat / COP + L1's other loads. No storage term, constant COP: read
+  it over hours, and expect the morning after a frosty night to need more than it says.
 - **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
   24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
   view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.
