@@ -347,34 +347,38 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
 
 **Open questions for Kevin, most useful first** (remove one when it is answered):
 
-1. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
+1. The home above has a tado thermostat from 28 Nov: it measures the other side of the ceiling
+   (37 W/K), one of the three unknown temperatures in the balance. Which model (tado X with a
+   Bridge X, or V3+ with an Internet Bridge), and does it switch the boiler on/off or over
+   OpenTherm? Then `tado_logger.py`. Log each guest arrival and departure with `note.py`
+   ("home above: guests arrive" / "... leave"); the dates stay on the Pi, not in this repo.
+2. From 29 Nov: v1 against v2 over a day. If v2 were v1 rounded to 0.5 °C, no gap would pass 0.25 K:
+   `python3 -c "import sqlite3; db = sqlite3.connect('file:p1.sqlite?mode=ro', uri=True); [print(*r) for r in db.execute('SELECT zone, count(*), round(avg(temp_c - temp_fine_c), 2), round(min(temp_c - temp_fine_c), 2), round(max(temp_c - temp_fine_c), 2), round(avg(abs(temp_c - temp_fine_c) > 0.25), 2) FROM zones WHERE temp_fine_c IS NOT NULL GROUP BY 1')]"`
+   (zone, readings, mean v2 − v1, min, max, share beyond 0.25 K).
+3. Overdue: both Vaillant counters (`python3 note.py --counters`), about once a week and before
+   every curve change (last: 22 Nov, 385 and 563 kWh).
+4. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
    and the living-room ceiling (the home above), and the NW wall in the basement (insulated: it
    should read near room temperature). The side walls of the living level are done.
-2. The home above: is it heated this week, what does it fall to when empty, and on which days do
-   guests come and go? And its boiler and thermostat: brand, model, OpenTherm or plain on/off
-   (decides between a tado X over Matter and an OpenTherm Gateway; Kevin to check, 28 Nov).
-3. Does the bedroom share a wall or door with the technical room (buffer tank, hot-water vat)? It
-   stays near 18.2 °C whatever its setpoint.
-4. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
+5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
-5. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
+6. Does the bedroom share a wall or door with the technical room (buffer tank, hot-water vat)? It
+   stays near 18.2 °C whatever its setpoint. And is the technical room inside the insulation?
+7. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
    the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
-6. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
+8. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
    cupboard.
-7. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
+9. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
    and whether a return temperature and a flow rate can be read anywhere (the flow temperature can).
-8. Is the technical room inside the insulation?
-9. The back windows and doors of the basement: glass type and sizes.
-10. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
+10. The back windows and doors of the basement: glass type and sizes.
+11. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
     chimney breast)? It covers part of the 30 m².
-11. In winter, from when to when does direct sun reach the back windows?
-12. Hot-water heater: the litres on its plate.
-13. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
+12. In winter, from when to when does direct sun reach the back windows?
+13. Hot-water heater: the litres on its plate.
+14. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
     minutes at meal times?
-14. Decisions: the eBUS adapter, the probes, and a cable route from the technical room to the
-    living level and the home above.
-15. Recurring: both Vaillant counters about once a week and before every curve change (last
-    reading: 22 Nov, 385 and 563 kWh).
+15. Decisions: the eBUS adapter, the probes (the home above's air probe may no longer be needed
+    with the tado), and a cable route from the technical room to the living level.
 
 **KNMI hourly API:** in `start=YYYYMMDDHH&end=YYYYMMDDHH` the hour is a range within each day, not
 a moment. Always ask for hours 01 to 24.
