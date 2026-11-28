@@ -136,6 +136,14 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   state: it cools toward outdoors with a time constant tau and heats at up to `rate` K/h, both fitted
   on the last 7 days. No sun, no neighbours, no floor mass: the hover gives its error over the last
   day. This is the first plant model for an MPC.
+  First fit on the Pi (28 Nov): living room tau 111 h, up to 0.48 K/h; at −4 °C that is a net
+  0.28 K/h, as seen on 27 Nov (17.0 → 18.5 °C in 5.5 h). From 19 °C on a frosty night the room
+  drops only to about 17.4 °C, and climbing back takes about 6 h: heating must start near 01:30
+  for 19 °C at 07:30. The bedroom gave no fit: it reads 18.0 or 18.5 all day whatever its
+  setpoint (true temperature about 18.2 °C), its 2-3 h windows at 19 °C add a few tenths at most,
+  and it hardly cools when its setpoint is low. Its change, about 0.1 K/h, is below the 0.5 °C
+  steps: hence the v1 readout (`temp_fine_c`, from 28 Nov). Until a fit holds, a room is held at
+  its last reading.
 - **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
   24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
   view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.
@@ -340,8 +348,8 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
 2. The home above: is it heated this week, what does it fall to when empty, and on which days do
    guests come and go? And its boiler and thermostat: brand, model, OpenTherm or plain on/off
    (decides between a tado X over Matter and an OpenTherm Gateway; Kevin to check, 28 Nov).
-3. Does the living room hold its day setpoint on the cold mornings of this week (curve 1.00,
-   45 °C maximum)? At night it held 18 °C at −1 °C outdoors (23 Nov). evohome has night set-backs.
+3. Does the bedroom share a wall or door with the technical room (buffer tank, hot-water vat)? It
+   stays near 18.2 °C whatever its setpoint.
 4. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
 5. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
@@ -374,7 +382,6 @@ a moment. Always ask for hours 01 to 24.
   if Rotterdam reports it) could replace it: decide once a winter of it exists.
 - Noise sensor: turn up its gain knob and test by clapping. Kevin can't reach the room easily at
   the moment.
-- evohome high-precision readout (v1 API, 0.01 °C) instead of 0.5 °C steps.
 - `street_consensus.py`: write only the recent hours, for a shorter lock.
 - Heating curve: step down to 1.0 if the rooms stay comfortable for 2-3 weekday mornings.
 - `leadtime.py` once morning warm-ups accumulate; a set-back depth experiment.
