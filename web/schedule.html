@@ -125,7 +125,8 @@ function roomCard(name, week, live, today) {
   if (live?.setpoint_c != null) parts.push([", setpoint ", `${live.setpoint_c.toFixed(1)} °C`]);
   for (const [text, value] of parts) now.append(text, el("b", value));
   if (live && current && live.setpoint_c !== current.setpoint)
-    now.append(` (the schedule says ${current.setpoint.toFixed(1)} °C${live.zone_mode && live.zone_mode !== "FollowSchedule" ? `: ${live.zone_mode}` : ""})`);
+    now.append(` (the schedule says ${current.setpoint.toFixed(1)} °C${live.zone_mode && live.zone_mode !== "follow_schedule"
+                                                                        ? `: ${live.zone_mode.replaceAll("_", " ")}` : ""})`);
   if (next) now.append(`. Next: ${inDays ? DAYS[(weekday(today) + inDays) % 7] + " " : ""}${clock(next.from)} → `,
                        el("b", `${next.setpoint.toFixed(1)} °C`), ".");
 

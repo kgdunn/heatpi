@@ -217,6 +217,10 @@ rain) and the page `/balance.html`.
   from 40 to 37 °C at about 8 °C outdoors. A cold week follows (nights to −2 °C): below about 1 °C
   outdoors both curves reach the 45 °C maximum, so the week tests whether 45 °C is enough in frost.
   Next: read the counters after about a week; go down by 0.2 again if every room held its setpoint.
+- **Frost rule** (`frost_rule.py`, 28 Nov): on a night with frost in the forecast (Open-Meteo,
+  KNMI's HARMONIE model), a living-room slot below 18 °C is lifted to 18 °C until the slot ends.
+  The first writer to evohome, and the baseline an MPC will have to beat. Judge it by the living
+  room's degree-hours below setpoint after the morning step, on frosty mornings with and without it.
 - 27 Nov, −4 °C at dawn: the living room was at 17.0 °C at 06:30 and reached only 18.5 °C by noon
   against 19 °C. Its setpoint before 07:30 was below the chart (15 °C or lower), so it cooled for
   hours first; at −4 °C both curves ask for more than the 45 °C maximum, so the limit is the

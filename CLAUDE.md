@@ -57,6 +57,7 @@ On the Pi itself, read only, so the loggers are never blocked:
 | `outdoor_temp.py && street_consensus.py` | cron `15 * * * *` | `street_temp`, `street_air`, `street_consensus` |
 | `knmi_temp.py` | cron every 10 min, needs the key in `~/.knmi` | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | cron `25 */6 * * *`, no key | `knmi_hourly` |
+| `frost_rule.py` | cron `*/15 * * * *` in `.venv`, once Kevin adds it | evohome overrides; `events` |
 | `note.py "text"` | by hand; `python3 note.py` lists | `events` |
 
 `update.sh` maps logger files to service names: add new services there. `status.sh` is the
@@ -111,9 +112,11 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
   computed series (`COMPUTED`, e.g. `energy`, `balance`, `schedule`) and `/api/version`. Each page in
   `web/` is one file: `index.html` (live view) and `balance.html` with Plotly 2.35.2 from jsDelivr,
   `schedule.html` (room schedules) in plain HTML.
-- **Writing to evohome:** the library can (`zone.set_temperature(..., until=...)`, `set_schedule`),
-  but nothing does yet. When it comes: overrides that end by themselves (`until=`), from a script
-  on the Pi, never from the dashboard (it has no login).
+- **Writing to evohome:** only `frost_rule.py` does, and only the way every writer must: overrides
+  that end by themselves (`until=`, timezone-aware), never lowering a setpoint, standing down after
+  a manual change or in away mode, failing to "do nothing", noting each write in `events`, from a
+  script on the Pi, never from the dashboard (it has no login). Zone modes read as
+  `follow_schedule`, `temporary_override`, ...; the system mode as `auto`, `away`, ...
 - **Heat balance:** `house.py` holds the house (areas, U-values, where each part loses heat to),
   `balance.py` the calculation; both use only the standard library because the dashboard imports
   them. The reasoning and the open questions are in NOTES.md.
