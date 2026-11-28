@@ -200,6 +200,28 @@ function roomForecastTraces(name, f, panel) {
                                   "<extra></extra>" }];
 }
 
+// The BnB from its tado: the setpoint ahead (the one in force until tado's next scheduled change, then
+// that one), dotted, and a mark on the temperature wherever tado saw an open window.
+function tadoExtras(name, t, panel, end) {
+  const color = ROOM_COLOR[name] ?? NEUTRAL, ax = { xaxis: "x" + axis(panel), yaxis: "y" + axis(panel) };
+  const rows = t.time.map((_, i) => i).filter(i => t.zone[i] === name), last = rows.at(-1), out = [];
+  const open = rows.filter(i => t.window_open?.[i]);
+  if (open.length)
+    out.push({ ...ax, x: open.map(i => t.time[i]), y: open.map(i => t.temp_c[i]), name: `${name}, window open`,
+               mode: "markers", visible: shown(name), marker: { color: KNMI, size: 9, symbol: "triangle-down" },
+               hovertemplate: `${name}: window open, %{y:.1f} °C<extra></extra>` });
+  const change = last != null && t.next_change_utc?.[last] ? Date.parse(t.next_change_utc[last]) : null;
+  if (change) {
+    const now = t.setpoint_c[last], next = t.next_setpoint_c[last], x = [t.time[last]], y = [now];
+    if (change < end) x.push(toLocal(change), toLocal(change)), y.push(now, next);
+    x.push(toLocal(end)); y.push(change < end ? next : now);
+    out.push({ ...ax, x, y, name: `${name} setpoint, scheduled`, mode: "lines",
+               visible: shown(name) && shown("setpoint") && shown("forecast"), line: { color, width: 1.5, dash: "dot" },
+               hovertemplate: `${name} setpoint, scheduled: %{y:.1f} °C<extra></extra>` });
+  }
+  return out;
+}
+
 // Heat pump: kWh since midnight, back to 0 at 00:00. A gap at each midnight keeps the line from
 // dropping vertically; `totals` holds each day's last value (a whole day's use, or today so far).
 function dailyEnergy(e) {
@@ -313,7 +335,7 @@ function render() {
     traces.push(...roomTraces(name, zones.get(name), UPSTAIRS.has(name) ? 1 : 0));
     if (fc.rooms?.[name]) traces.push(...roomForecastTraces(name, fc.rooms[name], UPSTAIRS.has(name) ? 1 : 0));
   }
-  for (const [name, z] of bnb) traces.push(...roomTraces(name, z, 5));
+  for (const [name, z] of bnb) traces.push(...roomTraces(name, z, 5), ...tadoExtras(name, tado, 5, end));
   traces.push(
     { ...smooth(outdoor.time, outdoor.temp_c), name: "Street, smoothed", xaxis: "x3", yaxis: "y3",
       visible: shown("street"), line: { color: LIGHT, width: 2 }, hoverinfo: "skip" },
@@ -412,7 +434,8 @@ async function load() {
       optional("loudness", span, { time: [], mean: [] }),
       fetch("/api/version").then(r => r.json()).catch(() => ({})),
       optional("forecast", 48, { time: [], temp_c: [], l1_kw: [] }),     // forecast_logger.py + balance.forecast
-      optional("tado", span, { time: [], zone: [], temp_c: [], setpoint_c: [] })]);   // tado_logger.py
+      optional("tado", span, { time: [], zone: [], temp_c: [], setpoint_c: [], window_open: [],
+                               next_change_utc: [], next_setpoint_c: [] })]);   // tado_logger.py
     // The window: the last `hours`, and a quarter of that (at least 6 h) of forecast when there is one.
     const now = new Date(), start = now - hours * HOUR, ahead = fc.time.length ? Math.max(6, hours / 4) : 0;
     status.textContent = "";

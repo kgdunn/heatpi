@@ -2,7 +2,9 @@
 """Log the home above's tado X rooms to SQLite: temperature, humidity, setpoint and heating demand.
 
 Reads tado's cloud (hops.tado.com, the tado X API), one call per run: without Auto-Assist tado
-allows 100 calls a day, so cron runs it every 20 minutes (72 a day). Read only.
+allows 100 calls a day, so cron runs it every 20 minutes (72 a day), plus one call per room a day
+for the weekly schedule (`tado_schedule`). Read only. Besides the columns, each row keeps tado's
+whole answer for its room (`raw`, JSON), so a field nobody uses yet can still be read later.
 
 Login: tado accepts no password from scripts. `--login` prints a link; open it on your phone, log
 in to tado and confirm. ~/.tado (chmod 600) then holds a refresh token and the home's id, never the
@@ -99,15 +101,51 @@ def mode(room):
     return next(found, "schedule")
 
 
+COLUMNS = (("ts_utc", "TEXT"), ("room", "TEXT"), ("temp_c", "REAL"), ("rh", "REAL"), ("setpoint_c", "REAL"),
+           ("heating_pct", "REAL"), ("mode", "TEXT"), ("window_open", "INTEGER"), ("next_change_utc", "TEXT"),
+           ("next_setpoint_c", "REAL"), ("raw", "TEXT"))
+SCHEDULE_EVERY = 23 * 3600                  # the weekly schedule rarely changes: one read a day per room
+
+
+def utc(stamp):
+    """tado's "2026-11-28T21:00:00Z" as "2026-11-28T21:00:00+00:00", like every other table."""
+    return datetime.fromisoformat(stamp).astimezone(timezone.utc).isoformat() if stamp else None
+
+
 def room_rows(rooms, ts):
-    """One row per room: time, name, °C, humidity %, setpoint °C (None when off), heating demand %, mode.
+    """One row per room, in COLUMNS order: time, name, °C, humidity %, setpoint °C (None when off),
+    heating demand %, mode, open window (tado saw a sudden drop and paused heating), the next
+    scheduled change (UTC) and its setpoint, and tado's whole answer for the room.
     With an on/off boiler, the heating demand is the share of time tado asks the boiler for heat."""
     for room in rooms:
         on = mode(room) != "off"
+        upcoming = room.get("nextScheduleChange") or {}
+        upcoming_on = pick(upcoming, "setting", "power") == "ON"
         yield (ts, (room.get("name") or "").strip(), pick(room, "sensorDataPoints", "insideTemperature", "value"),
                pick(room, "sensorDataPoints", "humidity", "percentage"),
                pick(room, "setting", "temperature", "value") if on else None,
-               pick(room, "heatingPower", "percentage"), mode(room))
+               pick(room, "heatingPower", "percentage"), mode(room), int(bool(room.get("openWindow"))),
+               utc(upcoming.get("start")),
+               pick(upcoming, "setting", "temperature", "value") if upcoming_on else None,
+               json.dumps(room, separators=(",", ":")))
+
+
+def read_schedules(db, rooms, token, home, ts):
+    """Each room's weekly schedule, as tado sends it, once a day. A failed read is stored too (as its
+    error), so it is not retried every 20 minutes against the 100 calls a day."""
+    last = db.execute("SELECT max(fetched_utc) FROM tado_schedule").fetchone()[0]
+    if last and (datetime.fromisoformat(ts) - datetime.fromisoformat(last)).total_seconds() < SCHEDULE_EVERY:
+        return
+    for room in rooms:
+        try:
+            raw = json.dumps(call(f"https://hops.tado.com/homes/{home}/rooms/{room['id']}/schedule", token=token),
+                             separators=(",", ":"))
+        except urllib.error.HTTPError as err:
+            raw = json.dumps({"error": f"{err.code} {err.reason}"})
+            print(f"{ts} schedule of {(room.get('name') or '').strip()}: tado answered {err.code} {err.reason}")
+        with db:
+            db.execute("INSERT OR IGNORE INTO tado_schedule VALUES (?, ?, ?)",
+                       (ts, (room.get("name") or "").strip(), raw))
 
 
 def main():
@@ -133,17 +171,32 @@ def main():
     if args.once:
         print(json.dumps(rooms, indent=1)[:4000])
         for row in room_rows(rooms, ts):
-            print(row)
+            print(row[:-1])                         # without the raw answer, printed above
+        if rooms:                                   # one more call: does the schedule endpoint answer?
+            try:
+                print(json.dumps(call(f"https://hops.tado.com/homes/{state['home']}/rooms/{rooms[0]['id']}/schedule",
+                                      token=token), indent=1)[:3000])
+            except urllib.error.HTTPError as err:
+                print(f"schedule: tado answered {err.code} {err.reason}")
         return
     db = sqlite3.connect(args.db, timeout=30)
-    db.execute("CREATE TABLE IF NOT EXISTS tado (ts_utc TEXT, room TEXT, temp_c REAL, rh REAL, setpoint_c REAL, "
-               "heating_pct REAL, mode TEXT, PRIMARY KEY (ts_utc, room))")
-    if "power" in {column[1] for column in db.execute("PRAGMA table_info(tado)")}:
-        with db:    # a table from the first version (28 Nov): `power` (ON/OFF) and room names with a space
+    db.execute(f"CREATE TABLE IF NOT EXISTS tado ({', '.join(f'{n} {t}' for n, t in COLUMNS)}, "
+               "PRIMARY KEY (ts_utc, room))")
+    db.execute("CREATE TABLE IF NOT EXISTS tado_schedule (fetched_utc TEXT, room TEXT, raw TEXT, "
+               "PRIMARY KEY (fetched_utc, room))")
+    have = {column[1] for column in db.execute("PRAGMA table_info(tado)")}
+    with db:
+        if "power" in have:     # a table from the first version (28 Nov): `power` (ON/OFF), room names with a space
             db.execute("ALTER TABLE tado RENAME COLUMN power TO mode")
             db.execute("UPDATE tado SET room = trim(room), mode = CASE mode WHEN 'OFF' THEN 'off' END")
+            have.add("mode")
+        for name, kind in COLUMNS:                  # columns added since the table was made
+            if name not in have:
+                db.execute(f"ALTER TABLE tado ADD COLUMN {name} {kind}")
     with db:
-        db.executemany("INSERT OR IGNORE INTO tado VALUES (?, ?, ?, ?, ?, ?, ?)", room_rows(rooms, ts))
+        db.executemany(f"INSERT OR IGNORE INTO tado ({', '.join(n for n, _ in COLUMNS)}) "
+                       f"VALUES ({', '.join('?' * len(COLUMNS))})", room_rows(rooms, ts))
+    read_schedules(db, rooms, token, state["home"], ts)
 
 
 if __name__ == "__main__":

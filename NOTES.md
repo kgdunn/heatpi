@@ -103,7 +103,8 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   in `update.sh` had not happened. The header now says "Server needs a restart" when the server's
   own files changed since it started, and `update.sh` says loudly when a restart fails.
 - **BnB panel** (28 Nov): the home above's tado temperature and setpoint, bottom left on its own
-  scale; the technical room moved to the bottom right. The header no longer shows the time range
+  scale, with the setpoint ahead until and after tado's next scheduled change (dotted) and a blue
+  mark wherever tado saw an open window. Earlier:   scale; the technical room moved to the bottom right. The header no longer shows the time range
   ("27 Nov at 11:00 to now ..."): only "Loading" or an error, to save a line on the phone.
 - **Forecast** (28 Nov): `forecast_logger.py` stores KNMI's HARMONIE forecast every hour (48 h
   ahead). The live view draws, dashed and to the right of a line at now: the forecast outdoor

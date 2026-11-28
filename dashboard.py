@@ -42,7 +42,8 @@ QUERIES = {
     "outdoor": "SELECT ts_utc, temp_c FROM street_consensus WHERE ts_utc >= ? ORDER BY ts_utc",
     "knmi": "SELECT ts_utc, temp_c FROM knmi_temp WHERE ts_utc >= ? ORDER BY ts_utc",
     "loudness": "SELECT ts_utc, mean FROM loudness WHERE ts_utc >= ? ORDER BY ts_utc",  # 1-min means
-    "tado": "SELECT ts_utc, room AS zone, temp_c, setpoint_c, mode FROM tado WHERE ts_utc >= ? ORDER BY ts_utc",
+    "tado": "SELECT ts_utc, room AS zone, temp_c, setpoint_c, mode, window_open, next_change_utc, next_setpoint_c "
+            "FROM tado WHERE ts_utc >= ? ORDER BY ts_utc",
 }
 
 
