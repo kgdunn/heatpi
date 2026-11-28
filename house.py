@@ -14,7 +14,11 @@ Usage:  python3 house.py        (prints the table)
 LAT, LON = 52.01, 4.37          # city level is enough for the sun's position
 GROUND_C = 11.0                 # deep ground: close to the yearly mean air temperature
 PEOPLE_W = 130                  # body heat of the people at home, averaged over day and night
-COP_DEFAULT = 2.3               # Vaillant counters, 1-14 Nov 2026; used until readings are logged
+# The Vaillant's settings in force. Logged changes ("heat curve 1.20 -> 1.00", "max target flow 55 -> 45")
+# give the history before them; these hold when there is none.
+HEAT_CURVE, MAX_FLOW_C = 1.00, 45.0
+HEATING_BELOW_C = 16.0          # the Vaillant heats only below this outdoor temperature ("OT switch-off")
+COP_SCALE_DEFAULT = 0.8         # real COP / guide COP before any counters are logged (Nov 2026 gave 0.73-0.84)
 
 # evohome zone -> (level, floor area in m2 read off the floor plan). Weights the room temperatures.
 ZONES = {"Living Room": ("living", 55), "Bedroom": ("basement", 33),

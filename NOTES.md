@@ -100,6 +100,20 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   more with sun. `house.py` accounts for about 160 W/K that follows the outdoor temperature. So
   expect the fitted value to settle near 180-220 W/K; a high day mostly means a lower COP in frost
   (not yet modelled) and heat going into storage.
+- **COP model** (28 Nov): COP = scale x the installer guide's COP at the outdoor temperature and
+  at the flow temperature the heat curve asks for (`balance.cop_model`). The guide's table (mean
+  of the 8 and 10 kW units) gives the shape: at 35 °C flow 2.90 / 3.39 / 4.67 at −7 / +2 / +7 °C
+  (+2 includes defrost), and 76 % / 68 % of that at 45 / 55 °C flow. The flow follows
+  `20 + 4.55 (curve x (20 − outdoor))^0.54`, capped at the maximum, fitted to the controller's
+  readings within about 1 K. The curve and maximum come from the `events` notes. Each counter period
+  gets its own scale, so its heat-weighted COP is what was measured:
+  1-14 Nov (curve 1.85, max 55): guide 3.08, measured 2.26, scale 0.73;
+  14-22 Nov (curve 1.20, max 45): guide 3.38, measured 2.85, scale 0.84.
+  The guide credits the curve change with +10 %, the counters showed +26 %: the rest is outside
+  the table (fewer starts and stops, perhaps the flat controller batteries early in November).
+  With curve 1.00 and scale 0.84 the COP runs from about 3.7 at +8 °C to 2.4 at +2 °C and 1.96
+  at −4 °C. On the frosty 27 Nov that brings the fitted W/K from 277 down to roughly 200.
+  `python3 balance.py --cop` prints the periods and the curve.
 - **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
   24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
   view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.
