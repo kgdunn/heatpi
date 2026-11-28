@@ -5,7 +5,9 @@ every settings change are in the `events` table (`python3 note.py` lists them).
 
 ## The heating system
 
-- Vaillant aroTHERM air-to-water heat pump, with a hydraulic station, a buffer tank and underfloor
+- Vaillant aroTHERM pure VWL 105/7.2 AS 230V S3 (10 kW, made 06/2023, R32 1.60 kg, one phase, 22 A
+  maximum; plate read 28 Nov). Plate: A7/W35 9.85 kW at COP 4.68, A7/W55 7.40 kW at COP 3.19.
+  Guide: A−7/W35 7.12 kW at COP 2.86, A2/W35 7.67 kW at 3.38. With a hydraulic station, a buffer tank and underfloor
   heating in 4 zones: Badkamer, Bedroom and Logeer downstairs, Living Room upstairs. The house is
   old. The basement technical room (heat pump indoor unit, buffer tank, the Pi) has little
   insulation and is damp.
@@ -103,9 +105,10 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   expect the fitted value to settle near 180-220 W/K; a high day mostly means a lower COP in frost
   (not yet modelled) and heat going into storage.
 - **COP model** (28 Nov): COP = scale x the installer guide's COP at the outdoor temperature and
-  at the flow temperature the heat curve asks for (`balance.cop_model`). The guide's table (mean
-  of the 8 and 10 kW units) gives the shape: at 35 °C flow 2.90 / 3.39 / 4.67 at −7 / +2 / +7 °C
-  (+2 includes defrost), and 76 % / 68 % of that at 45 / 55 °C flow. The flow follows
+  at the flow temperature the heat curve asks for (`balance.cop_model`). The guide's table for
+  the VWL 105 gives the shape: at 35 °C flow 2.86 / 3.38 / 4.68 at −7 / +2 / +7 °C
+  (+2 includes defrost), and 76 % / 68 % of that at 45 / 55 °C flow. (Until 28 Nov: the mean of
+  the 8 and 10 kW units, within 1.2 % of these.) The flow follows
   `20 + 4.55 (curve x (20 − outdoor))^0.54`, capped at the maximum, fitted to the controller's
   readings within about 1 K. The curve and maximum come from the `events` notes. Each counter period
   gets its own scale, so its heat-weighted COP is what was measured:
@@ -239,7 +242,15 @@ rain) and the page `/balance.html`.
 - L1 dropped by about 1 kW every 57 minutes that morning (06:22, 07:19, 08:16, 09:13 local), at
   about 2 °C outdoors. Probably defrost cycles: check with eBUS.
 - The heat pump seems to draw about 3 kW at times (L1 fell from 3.65 to 0.67 kW within a minute).
-  The 4 and 6 kW units stop at 2.3 kW, so it is probably the 8 or 10 kW unit: confirm on its plate.
+  The 4 and 6 kW units stop at 2.3 kW, so it is probably the 8 or 10 kW unit. Confirmed on 28 Nov:
+  the 10 kW VWL 105.
+- **Sizing** (28 Nov): the house needs about 180-200 W/K x ΔT (inside 19.5 °C), less about 0.5 kW
+  of gains: 2.2-2.5 kW at +7 °C, 4.2-4.7 kW at −4 °C and 4.8-5.3 kW at −7 °C. The VWL 105 gives 9.85 kW at A7/W35 and 7.12 kW at A−7/W35, so it is
+  about twice the size the house needs, and in mild weather it can only meet 2 kW by starting and
+  stopping (the buffer tank takes the surplus). Cycling costs COP and is a likely part of the
+  measured COP sitting 16-27 % under the guide. In frost the unit has spare capacity: the slow
+  morning recovery of 27 Nov is the 45 °C flow limit and the floor, not the heat pump. Check:
+  starts per day against outdoor temperature (`hp_check.py`).
 - Kitchen-size loads (1.2-1.8 kW for under 5 minutes) are on L1 too. The heat-pump rule ignores
   them because they are short. One of 1.0-1.25 kW runs about 4 minutes at meal times (07:52,
   12:02): perhaps the combi-oven as a microwave.
@@ -368,8 +379,8 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
 8. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
    cupboard.
-9. Heat pump: the size on the outdoor unit's plate (VWL 45, 65, 85 or 105), the buffer's litres,
-   and whether a return temperature and a flow rate can be read anywhere (the flow temperature can).
+9. Heat pump (the plate says VWL 105, 10 kW): the buffer's litres, and whether a return
+   temperature and a flow rate can be read anywhere (the flow temperature can).
 10. The back windows and doors of the basement: glass type and sizes.
 11. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
     chimney breast)? It covers part of the 30 m².

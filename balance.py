@@ -138,10 +138,10 @@ def on_facade(flat, when, facing):
     return (flat - diffuse) / up * max(aim, 0) + 0.5 * diffuse + 0.5 * 0.2 * flat
 
 
-# COP of the aroTHERM pure from the installer guide (EN 14511; mean of the 8 and 10 kW units, the likely
-# sizes). Only its shape is used: each period between two counter readings scales it to what was measured.
-GUIDE_W35 = ((-7, 2.895), (2, 3.385), (7, 4.665))      # outdoor °C -> COP at 35 °C flow (+2 °C includes defrost)
-GUIDE_FLOW = ((35, 1.0), (45, 0.759), (55, 0.678))     # flow °C -> COP relative to 35 °C flow, at +7 °C outdoors
+# COP of the aroTHERM pure VWL 105/7.2 (10 kW; its plate) from the installer guide (EN 14511). Only its
+# shape is used: each period between two counter readings scales it to what was measured.
+GUIDE_W35 = ((-7, 2.86), (2, 3.38), (7, 4.68))         # outdoor °C -> COP at 35 °C flow (+2 °C includes defrost)
+GUIDE_FLOW = ((35, 1.0), (45, 0.759), (55, 0.682))     # flow °C -> COP relative to 35 °C flow, at +7 °C outdoors
 
 
 def interpolate(points, x, extend=False):
