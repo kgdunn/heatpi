@@ -67,7 +67,7 @@ PARTS = [
     part("Front wall, technical room", "walls", "basement", "outdoors", "est",
          "2.10 x 2.1 m of the front: plywood over masonry, partly insulated", area=4.4, u=1.2),
     part("Ventilation unit", "ventilation", "house", "outdoors", "est",
-         "Itho Daalderop HRU ECO 350; 150 m3/h and 85 % heat recovery assumed (infrared 28 Nov: 75-87 %)", wk=7.7),
+         "Itho Daalderop HRU ECO 350; 150 m3/h assumed, 75 % heat recovery (infrared 28 Nov)", wk=12.5),
     part("Ventilation ducts, cold cupboard", "ventilation", "house", "outdoors", "est",
          "bare ducts; drops once they are insulated", wk=12.0),
     part("Draughts", "draughts", "house", "outdoors", "est",

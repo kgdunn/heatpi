@@ -247,8 +247,14 @@ rain) and the page `/balance.html`.
   (from our rooms) 21.5 °C; back-right fully insulated, to outdoors. Outdoors about −0.5 °C.
   Recovery = (16 + 0.5) / (21.5 + 0.5) = 75 %. But 21.5 °C is warmer than any room (17.7-19 °C):
   the extract carries bathroom or kitchen air, or the reading on bare metal is off. With the rooms'
-  18.5 °C it is 87 %. So 75-87 %; `house.py` keeps 85 % until an air thermometer in the stream at
-  an extract valve and a supply vent settles it.
+  18.5 °C it is 87 %.
+  Two more readings: the extract where it enters the unit 22 °C, so the extract air really is warm;
+  the supply on its way down 14.5 °C, 1.5 K under its 16 °C at the unit. So recovery at the unit
+  (16 + 0.5) / (22 + 0.5) = 73 %, and what reaches the rooms (14.5 + 0.5) / 22.5 = 67 %. The
+  supply duct alone loses 1200 J/m³K x 150 m³/h x 1.5 K = about 75 W in the cupboard (if the flow
+  is 150 m³/h). `house.py` now has 75 % (12.5 W/K, was 7.7 at 85 %). An Itho HRU ECO 350 should do
+  about 90 %: worth checking the filters (the unit carries a "1+1 gratis filterset" sticker),
+  whether its summer bypass is open, and whether supply and extract flows are balanced.
 - Bare ducts in the 8 °C cupboard: with about 8 W/m²K on a 160 mm duct (0.5 m² per metre), the
   extract loses about 55 W and the supply about 30 W per metre. 85 % of the extract's loss would
   have come back through the exchanger, so the house loses about 80 W per metre of both ducts, or
