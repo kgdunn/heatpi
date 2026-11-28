@@ -19,6 +19,7 @@
   #legend button[aria-pressed="false"] { opacity: 0.35; text-decoration: line-through; }   /* hidden */
   #legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
   #legend .dotted { border-top-style: dotted; border-color: #6b6a66; }
+  #legend .dashed { border-top: 2px dashed #5b5a56; }
   #legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgba(91,90,86,0.5);
                  vertical-align: middle; margin: 0 6px 0 5px; }
   #legend .group { display: inline-flex; align-items: center; gap: 0 8px; margin-left: 8px; }  /* wraps as one */
@@ -215,6 +216,29 @@ function priorDay(e, cutoffMs) {
 // window (2 days for the 24 h view), at most a week. The page opens on the newest `hours`.
 const history = hours => Math.min(2 * hours, 168);
 
+// Today's kWh since midnight carried forward with the forecast L1 power: a dashed line that starts where
+// the measured one ends and, like it, goes back to 0 at midnight. `totals`: each day's projected end.
+function projection(e, fc) {
+  const x = [], y = [], totals = [];
+  if (!e.time.length || !fc.time.length) return { x, y, totals };
+  let t = toTime(e.time.at(-1)), kwh = e.kwh.at(-1);
+  x.push(e.time.at(-1)); y.push(kwh);
+  fc.time.forEach((s, i) => {
+    const next = toTime(s), midnight = new Date(t);
+    if (next <= t) return;
+    midnight.setHours(24, 0, 0, 0);
+    if (next >= midnight.getTime()) {                  // the day ends: its total, a gap, and 0 again
+      kwh += fc.l1_kw[i] * (midnight - t) / HOUR;
+      x.push(toLocal(midnight - 60e3), toLocal(+midnight), toLocal(+midnight)); y.push(kwh, null, 0);
+      totals.push([toLocal(midnight - 60e3), kwh]);
+      t = +midnight; kwh = 0;
+    }
+    kwh += fc.l1_kw[i] * (next - t) / HOUR; t = next;
+    x.push(s); y.push(kwh);
+  });
+  return { x, y, totals };
+}
+
 // The window drawn: the newest `hours`, unless the user dragged or zoomed since the last draw of this
 // view; then theirs stays, also through the 5-minute refresh. A new range or Refresh starts over.
 let drawnView = -1, autoWindow = null;
@@ -239,7 +263,8 @@ function showVersion(v) {
 
 function render() {
   if (!data) return;
-  const { hours, start, end, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise } = data;
+  const { hours, start, end, zones, evohome, outdoor, knmi, energy, prior, power, tech, noise, fc } = data;
+  const ahead = projection(energy, fc);
   const cumulative = hpMode === "kwh";
   const note = (d, what) => (d.time.length ? "" : ` · <i>${missing(d, what)}</i>`);   // empty panel: say why
   const daily = dailyEnergy(energy), before = dailyEnergy(prior);
@@ -256,6 +281,7 @@ function render() {
   legend.push(legendKey("setpoint", "setpoint", `<i class="dotted"></i>`), group("Outdoor:", outdoorKeys));
   if (cumulative && prior.time.length)
     legend.push(group("Heat pump:", [legendKey("prior", "a day earlier", `<i style="border-color:${PRIOR}"></i>`)]));
+  if (fc.time.length) legend.push(legendKey("forecast", "forecast", `<i class="dashed"></i>`));
   document.getElementById("legend").innerHTML = legend.join("");
 
   // Panel 0: downstairs rooms together; 1: living room upstairs; 2: outdoor; 3: heat pump circuit;
@@ -273,15 +299,21 @@ function render() {
     // KNMI reports every 10 minutes and jitters; the same smoother as the street line makes the two comparable.
     { ...smooth(knmi.time, knmi.temp_c), name: "KNMI Rotterdam", xaxis: "x3", yaxis: "y3", visible: shown("knmi"),
       line: { color: KNMI, width: 2 }, hovertemplate: "KNMI Rotterdam, smoothed: %{y:.1f} °C<extra></extra>" },
+    { x: fc.time, y: fc.temp_c, name: "Forecast", xaxis: "x3", yaxis: "y3", visible: shown("forecast"),
+      line: { color: KNMI, width: 2, dash: "dash" }, hovertemplate: "Forecast: %{y:.1f} °C<extra></extra>" },
     ...(cumulative ? [
       { x: before.x, y: before.y, name: "1 day earlier", xaxis: "x4", yaxis: "y4",   // empty unless 24 h view
         visible: shown("prior"), line: { color: PRIOR, width: 2 }, hovertemplate: "1 day earlier: %{y:.1f} kWh<extra></extra>" },
       { x: daily.x, y: daily.y, name: "L1", xaxis: "x4", yaxis: "y4",
         fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1.5 },
-        hovertemplate: "L1 since midnight: %{y:.1f} kWh<extra></extra>" }] : [
+        hovertemplate: "L1 since midnight: %{y:.1f} kWh<extra></extra>" },
+      { x: ahead.x, y: ahead.y, name: "Forecast", xaxis: "x4", yaxis: "y4", visible: shown("forecast"),
+        line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "Forecast since midnight: %{y:.1f} kWh<extra></extra>" }] : [
       { x: power.time, y: power.l1_w.map(w => w / 1000), name: "L1", xaxis: "x4", yaxis: "y4",
         fill: "tozeroy", fillcolor: "rgba(91,90,86,0.18)", line: { color: NEUTRAL, width: 1 },
-        hovertemplate: "L1: %{y:.2f} kW<extra></extra>" }]),
+        hovertemplate: "L1: %{y:.2f} kW<extra></extra>" },
+      { x: fc.time, y: fc.l1_kw, name: "Forecast", xaxis: "x4", yaxis: "y4", visible: shown("forecast"),
+        line: { color: NEUTRAL, width: 1.5, dash: "dash" }, hovertemplate: "Forecast L1: %{y:.2f} kW, hourly mean<extra></extra>" }]),
     { ...noiseLine, name: "Noise", xaxis: "x5", yaxis: "y5",
       fill: "tozeroy", fillcolor: "rgba(91,90,86,0.15)", line: { color: LIGHT, width: 1 },
       hovertemplate: "Noise: %{y:.0f} raw (0-4095)<extra></extra>" },
@@ -313,7 +345,7 @@ function render() {
     layout["yaxis" + axis(i)] = { domain: yDomain, anchor: "x" + axis(i), autorange: true };
   });
   Object.assign(layout.yaxis2, { matches: "y" });
-  const peak = Math.max(0, ...daily.totals.map(([, kwh]) => kwh), ...before.totals.map(([, kwh]) => kwh));
+  const peak = Math.max(0, ...[daily, before, ahead].flatMap(d => d.totals.map(([, kwh]) => kwh)));
   Object.assign(layout.yaxis4, cumulative ? { autorange: false, range: [0, 1.15 * peak || 1] }   // headroom for the totals
                                           : { autorange: true, rangemode: "tozero" });
   // Each day's total at the end of its line, when the panel has room (about 32 px per day in view).
@@ -321,6 +353,14 @@ function render() {
     for (const [t, kwh] of daily.totals)
       layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: kwh.toFixed(1), showarrow: false,
                                 xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#3d3c39" } });
+  if (cumulative && shown("forecast") && width * 0.45 / (hours / 24 + 1) >= 32)   // a forecast total: "≈ 38"
+    for (const [t, kwh] of ahead.totals)
+      layout.annotations.push({ x: t, y: kwh, xref: "x4", yref: "y4", text: `≈ ${kwh.toFixed(0)}`, showarrow: false,
+                                xanchor: "right", yanchor: "bottom", font: { size: 11, color: "#6b6a66" } });
+  // A thin line at now in every panel: measured to its left, forecast to its right.
+  const nowX = toLocal(Date.now());
+  layout.shapes = panels.map((_, i) => ({ type: "line", xref: "x" + axis(i), yref: `y${axis(i)} domain`, x0: nowX, x1: nowX,
+                                          y0: 0, y1: 1, layer: "below", line: { color: LIGHT, width: 1 } }));
   const noiseRange = robustRange(noiseLine.y);
   Object.assign(layout.yaxis5, { side: "right", showgrid: false, zeroline: false, autorange: !noiseRange, range: noiseRange });
   layout.yaxis6 = { overlaying: "y5", side: "left", anchor: "x5", autorange: true };
@@ -337,7 +377,7 @@ async function load() {
   const status = document.getElementById("status");
   try {
     const none = { time: [], temp_c: [] };
-    const [zones, outdoor, energy, power, knmi, tech, noise, version] = await Promise.all([
+    const [zones, outdoor, energy, power, knmi, tech, noise, version, fc] = await Promise.all([
       optional("zones", span, { time: [], zone: [], temp_c: [], setpoint_c: [] }),
       optional("outdoor", span, none),
       optional("energy", span, { time: [], kwh: [] }),
@@ -345,13 +385,16 @@ async function load() {
       optional("knmi", span, none),                          // only once knmi_temp.py runs
       optional("room", span, none),                          // optional sensors: an empty panel, not an error
       optional("loudness", span, { time: [], mean: [] }),
-      fetch("/api/version").then(r => r.json()).catch(() => ({}))]);
-    const now = new Date(), start = now - hours * HOUR;
-    status.textContent = `${when(new Date(start))} to ${when(now)} · drag back for ${history(hours) / 24} days more · ` +
-                         `updated ${two(now.getHours())}:${two(now.getMinutes())}`;
+      fetch("/api/version").then(r => r.json()).catch(() => ({})),
+      optional("forecast", 48, { time: [], temp_c: [], l1_kw: [] })]);   // forecast_logger.py + balance.forecast
+    // The window: the last `hours`, and a quarter of that (at least 6 h) of forecast when there is one.
+    const now = new Date(), start = now - hours * HOUR, ahead = fc.time.length ? Math.max(6, hours / 4) : 0;
+    status.textContent = `${when(new Date(start))} to now${ahead ? ` + ${ahead} h forecast` : ""} · ` +
+                         `${history(hours) / 24} days more behind · updated ${two(now.getHours())}:${two(now.getMinutes())}`;
     showVersion(version);                                    // before render: the header's final height
     const prior = hours <= 24 ? priorDay(energy, start) : { time: [], kwh: [] };
-    data = { hours, start, end: now.getTime(), zones: byZone(zones), evohome: zones, outdoor, knmi, energy, prior, power, tech, noise };
+    data = { hours, start, end: now.getTime() + ahead * HOUR, zones: byZone(zones), evohome: zones, outdoor, knmi, energy,
+             prior, power, tech, noise, fc };
     render();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;

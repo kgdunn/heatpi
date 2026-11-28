@@ -181,14 +181,15 @@ def hourly(db_path, since):
     heater = heater_watts(jumps, max(minute for minute, _, _ in power) * 60 + 60)
     heat_pump = heat_pump_watts({minute: l1 - heater.get(minute, 0)          # L1 without the heater
                                  for minute, _, l1 in power if l1 is not None})
-    used = defaultdict(lambda: [0, 0.0, 0.0, 0.0])            # hour -> minutes; Wh: total, heat pump, hot water
-    for minute, total, _ in power:
+    used = defaultdict(lambda: [0, 0.0, 0.0, 0.0, 0.0])       # hour -> minutes; Wh: total, heat pump, hot water, L1
+    for minute, total, l1 in power:
         if total is not None:
             u = used[minute // 60]
             u[0] += 1
             u[1] += total / 60
             u[2] += heat_pump.get(minute, 0) / 60
             u[3] += heater.get(minute, 0) / 60
+            u[4] += (l1 or 0) / 60
 
     inside = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))   # hour -> level -> area x temp, area
     for hour, zone, temp in zones:
@@ -200,7 +201,7 @@ def hourly(db_path, since):
 
     out = []
     for hour in sorted(used):
-        minutes, total_wh, hp_wh, hot_wh = used[hour]
+        minutes, total_wh, hp_wh, hot_wh, l1_wh = used[hour]
         temp = {level: weighted / area for level, (weighted, area) in inside[hour].items()}
         other = {"outdoors": outdoor.get(hour), "ground": house.GROUND_C}
         if minutes < 50 or len(temp) < 3 or other["outdoors"] is None:
@@ -212,7 +213,7 @@ def hourly(db_path, since):
         row = {"when": when, "cop": cop, "cop_logged": logged is not None,
                "t_in": temp["house"], "t_out": other["outdoors"],
                "heat_pump": cop * hp_wh * fill, "appliances": (total_wh - hp_wh - hot_wh) * fill,
-               "hot_water": hot_wh * fill,
+               "hot_water": hot_wh * fill, "l1": l1_wh * fill,
                "people": house.PEOPLE_W / 1000, "sun": None, **dict.fromkeys(OUT, 0.0)}
         if hour in sunshine:
             noon = when + timedelta(minutes=30)               # the middle of the hour
@@ -260,6 +261,60 @@ def daily(db_path, hours):
         "t_out": [round(row["t_out"], 2) for row in by_hour],
         "sun": [row["sun"] is not None for row in by_hour],   # False: KNMI has not published this hour yet
     }
+    return out
+
+
+def forecast(db_path, days=3):
+    """The heat pump for the coming hours, from the newest weather forecast (forecast_logger.py) and the
+    house: its heat loss per kelvin (W/K) is scaled so that the last `days` whole days close at 100 %.
+
+        heat pump heat = W/K x (inside - forecast outdoor) - appliances and people - forecast sun
+        L1 electricity = heat / COP + L1's other loads (hot water, kitchen), both from the same days
+
+    Inside temperature, gains, COP and L1's other loads are those days' means; no storage in floors
+    and walls, so read the result over several hours, not hour by hour."""
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=days + 1)).astimezone(LOCAL).replace(hour=0, minute=0, second=0, microsecond=0)
+    by_day = defaultdict(list)
+    for row in hourly(db_path, since.astimezone(timezone.utc).isoformat()):
+        by_day[row["when"].astimezone(LOCAL).date()].append(row)
+    today = now.astimezone(LOCAL).date()
+    use = [group for day, group in sorted(by_day.items())
+           if day < today and len(group) >= 23 and all(row["sun"] is not None for row in group)][-days:]
+    out = {key: [] for key in ("time", "temp_c", "hp_kw", "l1_kw")}
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)) as db:
+        issued = rows(db, "SELECT max(issued_utc) FROM forecast")
+        weather = rows(db, "SELECT ts_utc, temp_c, rad_wm2 FROM forecast WHERE issued_utc = ? AND ts_utc >= ? "
+                           "ORDER BY ts_utc", issued[0][0] if issued else None,
+                       (now - timedelta(hours=1)).isoformat())
+    if not use:
+        out["model"] = {"why": "needs a whole day with power, rooms, outdoor and sun data"}
+        return out
+
+    hours = [row for group in use for row in group]
+    def mean(key):
+        return sum(key(row) for row in hours) / len(hours)
+    def per_kelvin(group):                                    # kW of heat in per kelvin inside - outside
+        return sum(row[k] or 0 for row in group for k in IN) / sum(row["t_in"] - row["t_out"] for row in group)
+    w_per_k = per_kelvin(hours)
+    gains = mean(lambda row: row["appliances"] + row["people"])
+    l1_other = mean(lambda row: row["l1"] - row["heat_pump"] / row["cop"])
+    t_in, cop = mean(lambda row: row["t_in"]), hours[-1]["cop"]
+    for ts, temp, rad in weather:
+        when = datetime.fromisoformat(ts)
+        sun = sum(hole * on_facade(rad or 0, when - timedelta(minutes=30), facing)   # rad: the hour before ts
+                  for facing, hole in house.SUN_HOLES.items()) / 1000
+        heat = max(0.0, w_per_k * (t_in - temp) - gains - sun)
+        out["time"].append(when.astimezone(LOCAL).strftime("%Y-%m-%d %H:%M:%S"))
+        out["temp_c"].append(temp)
+        out["hp_kw"].append(round(heat / cop, 3))
+        out["l1_kw"].append(round(heat / cop + l1_other, 3))
+    daily_w_per_k = [1000 * per_kelvin(group) for group in use]
+    out["model"] = {"w_per_k": round(1000 * w_per_k), "range": [round(min(daily_w_per_k)), round(max(daily_w_per_k))],
+                    "days": len(use), "t_in": round(t_in, 1), "gains_kw": round(gains, 2), "cop": round(cop, 2),
+                    "l1_other_kw": round(l1_other, 2),
+                    "issued": datetime.fromisoformat(issued[0][0]).astimezone(LOCAL).strftime("%Y-%m-%d %H:%M")
+                    if weather else None}
     return out
 
 

@@ -57,6 +57,7 @@ On the Pi itself, read only, so the loggers are never blocked:
 | `outdoor_temp.py && street_consensus.py` | cron `15 * * * *` | `street_temp`, `street_air`, `street_consensus` |
 | `knmi_temp.py` | cron every 10 min, needs the key in `~/.knmi` | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | cron `25 */6 * * *`, no key | `knmi_hourly` |
+| `forecast_logger.py` | cron `5 * * * *`, no key | `forecast` |
 | `frost_rule.py` | cron `*/15 * * * *` in `.venv`, once Kevin adds it | evohome overrides; `events` |
 | `note.py "text"` | by hand; `python3 note.py` lists | `events` |
 
@@ -77,6 +78,7 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 | `knmi_temp` | 10 min, since 22 Nov 2026 | KNMI station `0-20000-0-06344` (Rotterdam Airport): `temp_c` |
 | `knmi_live` | 10 min, since 22 Nov 2026 | Same station, for the balance: `rad_wm2` (sunshine on a flat surface), `wind_ms`, `wind_dir`, `rain_mmh`, `soil_c` (soil at 1 m). `ts_utc` is the end of the 10 minutes. The balance uses `rad_wm2` until `knmi_hourly` has the hour. |
 | `knmi_hourly` | hourly, about 2 days late | KNMI Rotterdam (station 344), validated: `temp_c`, `wind_ms`, `wind_dir`, `rad_wm2` (sunshine on a flat surface), `rain_mm`, `rain_h`. `ts_utc` is the start of the hour. |
+| `forecast` | hourly | Open-Meteo, model `knmi_seamless`, for `house.LAT/LON`: `issued_utc` (the run's hour), `ts_utc` (the hour forecast, up to 48 h ahead), `temp_c`, `rad_wm2` (mean of the hour ending at `ts_utc`). Every run is kept: the record of how good the forecast was. |
 | `events` | by hand | `ts_utc`, `note`: settings changes and happenings. The source of truth for "when did X change". |
 
 ## Data caveats: read before analysing
@@ -109,7 +111,7 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 - SQLite: connect with `timeout=30`, keep write transactions short (`with db:`), and read through
   `mode=ro` URIs.
 - `dashboard.py` uses only the standard library and runs only whitelisted queries (`QUERIES`),
-  computed series (`COMPUTED`, e.g. `energy`, `balance`, `schedule`) and `/api/version`. Each page in
+  computed series (`COMPUTED`, e.g. `energy`, `balance`, `schedule`, `forecast`) and `/api/version`. Each page in
   `web/` is one file: `index.html` (live view) and `balance.html` with Plotly 2.35.2 from jsDelivr,
   `schedule.html` (room schedules) in plain HTML.
 - **Writing to evohome:** only `frost_rule.py` does, and only the way every writer must: overrides

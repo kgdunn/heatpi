@@ -8,6 +8,7 @@ the browser with Plotly from a CDN, so the Pi only sends a few kB of data.
     GET /api/<series>?hours=24 -> {"time": [...], "<column>": [...], ...}  (local time)
     GET /api/balance?hours=336 -> the heat balance per day (balance.py)
     GET /api/schedule          -> every zone's newest weekly schedule (web/schedule.html)
+    GET /api/forecast          -> forecast outdoor temperature and heat pump for 48 h (balance.forecast)
 
 Usage:  python3 dashboard.py [--port 8080]
 """
@@ -90,7 +91,8 @@ def schedule(hours):
 
 
 # Series built in Python rather than in one query.
-COMPUTED = {"energy": energy, "balance": lambda hours: balance.daily(DB, hours), "schedule": schedule}
+COMPUTED = {"energy": energy, "balance": lambda hours: balance.daily(DB, hours), "schedule": schedule,
+            "forecast": lambda hours: balance.forecast(DB)}  # the coming 48 h; `hours` is not used
 
 
 def version():

@@ -14,6 +14,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `evohome_logger.py` | Every evohome zone's temperature, setpoint and mode, every 5 min, and its weekly schedule every 6 h (TCC cloud, read only) | service `evohome-logger` | `zones`, `schedule` |
 | `knmi_temp.py` | KNMI Rotterdam every 10 min (EDR API, free key in `~/.knmi`): air temperature, and sunshine, wind, rain and soil temperature for the heat balance | cron, every 10 min | `knmi_temp`, `knmi_live` |
 | `knmi_hourly.py` | KNMI Rotterdam per hour, no key: sunshine, wind, rain (about 2 days late) | cron, every 6 h | `knmi_hourly` |
+| `forecast_logger.py` | The weather forecast for the house (KNMI's HARMONIE model via Open-Meteo, no key): temperature and sunshine for the next 48 h, every hour | cron, hourly | `forecast` |
 | `compare_temps.py` | One-off check: our sensor vs KNMI Rotterdam, with a chart | by hand | – |
 | `hp_check.py` | Heat pump runs, starts and kWh per day, with an hourly map | by hand | – |
 | `steps.py` | Sudden jumps in power per phase, and matching pairs as appliance runs: which appliance is on which phase | by hand | – |
@@ -114,6 +115,16 @@ COP between two readings instead of its default:
 ```bash
 python3 note.py "counters: heating=253 yield=319"
 ```
+
+### Weather forecast: dashed lines on the live view
+
+```bash
+python3 forecast_logger.py
+(crontab -l; echo '5 * * * * cd ~/p1-logger && python3 forecast_logger.py >> forecast.log 2>&1') | crontab -
+```
+
+The live view then draws the forecast outdoor temperature, and the heat pump's L1 power and kWh
+forecast from the house model (`balance.forecast`), to the right of a line at now.
 
 ### Frost rule: the first one that writes to evohome
 
