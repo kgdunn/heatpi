@@ -12,6 +12,9 @@ Temperature: one room, one state, fitted on the logged hours (`zones`, `street_c
     holding     (at the setpoint):          T stays, unless holding needs more than `rate`
 tau (hours) from the cooling hours, rate (K/h) from the warming hours. No sun, no neighbours, no
 separate floor mass: a first, rough model, and its error over the last day comes with it.
+Readings to 0.01 °C (`temp_fine_c`, the v1 API) are used where they exist, else the 0.5 °C ones.
+A fit outside 5-500 h or 0.05-3 K/h means the readings could not tell (the room hardly moved): then
+the room is held at its last reading, and `why` says so.
 
 Usage:  python3 rooms.py [--db p1.sqlite]      (prints the fitted models)
 """
@@ -57,10 +60,12 @@ def fit(history):
     if len(cool) < 6 or len(warm) < 3:
         return None, f"too few hours to fit: {len(cool)} cooling (need 6), {len(warm)} warming (need 3)"
     per_hour = -sum(loss * drop for loss, drop in cool) / sum(loss * loss for loss, _ in cool)
-    tau = min(500.0, max(5.0, 1 / per_hour if per_hour > 0 else 500.0))
+    tau = 1 / per_hour if per_hour > 0 else float("inf")
     rate = sum(later - t + (t - out) / tau for t, out, later in warm) / len(warm)
-    return {"tau_h": round(tau, 1), "rate_k_per_h": round(min(3.0, max(0.05, rate)), 2),
-            "hours": [len(cool), len(warm)]}, None
+    if not (5 <= tau <= 500 and 0.05 <= rate <= 3):
+        return None, (f"not fitted: the room hardly moved (tau {tau:.0f} h, rate {rate:.2f} K/h from "
+                      f"{len(cool)} cooling and {len(warm)} warming hours)")
+    return {"tau_h": round(tau, 1), "rate_k_per_h": round(rate, 2), "hours": [len(cool), len(warm)]}, None
 
 
 def step(temp, setpoint, t_out, model):
@@ -78,14 +83,16 @@ def forecast(db_path, hours=48, days=7):
     now = datetime.now(timezone.utc)
     since = (now - timedelta(days=days)).isoformat()
     with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)) as db:
-        logged = rows(db, f"SELECT {HOURLY}, zone, avg(temp_c), min(setpoint_c), max(setpoint_c) FROM zones "
+        fine = "temp_fine_c" in {column[1] for column in db.execute("PRAGMA table_info(zones)")}
+        temp_c = "coalesce(temp_fine_c, temp_c)" if fine else "temp_c"      # older tables lack the column
+        logged = rows(db, f"SELECT {HOURLY}, zone, avg({temp_c}), min(setpoint_c), max(setpoint_c) FROM zones "
                           "WHERE ts_utc >= ? GROUP BY 1, 2", since)
         outdoor = dict(rows(db, f"SELECT {HOURLY}, avg(temp_c) FROM street_consensus WHERE ts_utc >= ? GROUP BY 1",
                             since))
         issued = rows(db, "SELECT max(issued_utc) FROM forecast")
         weather = rows(db, "SELECT ts_utc, temp_c FROM forecast WHERE issued_utc = ? ORDER BY ts_utc",
                        issued[0][0] if issued else None)
-        latest = {zone: rows(db, "SELECT ts_utc, temp_c, setpoint_c, zone_mode FROM zones WHERE zone = ? "
+        latest = {zone: rows(db, f"SELECT ts_utc, {temp_c}, setpoint_c, zone_mode FROM zones WHERE zone = ? "
                                  "ORDER BY ts_utc DESC LIMIT 1", zone) for zone in ZONES}
         schedules = {zone: stored_schedule(db, zone) for zone in ZONES}
     weather = [(datetime.fromisoformat(ts), temp) for ts, temp in weather]
@@ -121,8 +128,14 @@ def forecast(db_path, hours=48, days=7):
         history = [(t, lo, hi, outdoor[hour], by_hour[hour + 1][0]) for hour, (t, lo, hi) in sorted(by_hour.items())
                    if hour + 1 in by_hour and hour in outdoor]
         model, why = fit(history)
-        if model is None or not weather:
-            result["model"]["why"] = why or "no weather forecast yet"
+        when, end = datetime.fromisoformat(ts).astimezone(LOCAL), start + timedelta(hours=hours)
+        if model is None:                               # no model: hold the last reading
+            result["model"]["why"] = why
+            result["temp"] = {"time": [f"{when:%Y-%m-%d %H:%M:%S}", f"{end:%Y-%m-%d %H:%M:%S}"],
+                              "value": [temp_now, temp_now]}
+            continue
+        if not weather:
+            result["model"]["why"] = "no weather forecast yet"
             continue
         last_day = sorted(h for h in by_hour if h in outdoor)[-24:]
         if len(last_day) >= 12:
@@ -134,10 +147,10 @@ def forecast(db_path, hours=48, days=7):
                 temp = step(temp, by_hour[hour - 1][2], outdoor[hour - 1], model)
                 errors.append(temp - by_hour[hour][0])
             model["rms_k"] = round(sqrt(sum(e * e for e in errors) / len(errors)), 2) if errors else None
-        temp, when = temp_now, datetime.fromisoformat(ts).astimezone(LOCAL)
+        temp = temp_now
         result["temp"]["time"].append(f"{when:%Y-%m-%d %H:%M:%S}")
         result["temp"]["value"].append(temp)
-        while when < start + timedelta(hours=hours):
+        while when < end:
             setpoint = next((s for a, b, s in plan if a <= when + timedelta(minutes=30) < b), plan[-1][2])
             temp = step(temp, setpoint, outdoor_at(when + timedelta(minutes=30)), model)
             when += timedelta(hours=1)
@@ -154,7 +167,7 @@ def main():
     for zone, result in forecast(args.db).items():
         model = result["model"]
         if "tau_h" not in model:
-            print(f"{zone}: no temperature model: {model.get('why')}")
+            print(f"{zone}: {model.get('why')}")
             continue
         print(f"{zone}: cools toward outdoors with a time constant of {model['tau_h']} h; heats at up to "
               f"{model['rate_k_per_h']} K/h (from {model['hours'][0]} cooling and {model['hours'][1]} warming hours); "

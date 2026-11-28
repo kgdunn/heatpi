@@ -188,14 +188,15 @@ function roomTraces(name, z, panel) {
 // and the temperature from the rough room model, dashed, both in the room's colour.
 function roomForecastTraces(name, f, panel) {
   const color = ROOM_COLOR[name] ?? NEUTRAL, ax = { xaxis: "x" + axis(panel), yaxis: "y" + axis(panel) };
-  const on = shown(name) && shown("forecast"), rms = f.model?.rms_k;
+  const on = shown(name) && shown("forecast"), rms = f.model?.rms_k, held = f.model?.why;
   return [{ ...ax, x: f.setpoint.time, y: f.setpoint.value, name: `${name} setpoint, forecast`, mode: "lines",
             visible: on && shown("setpoint"),
             line: { color, width: 1.5, dash: "dot" }, hovertemplate: `${name} setpoint, forecast: %{y:.1f} °C<extra></extra>` },
           { ...ax, x: f.temp.time, y: f.temp.value, name: `${name}, forecast`, mode: "lines", visible: on,
             line: { color, width: 2, dash: "dash" },
-            hovertemplate: `${name}, forecast: %{y:.1f} °C` + (rms != null ? ` (±${rms.toFixed(1)} K over the last day)` : "") +
-                           "<extra></extra>" }];
+            hovertemplate: held ? `${name}: held at the last reading, %{y:.1f} °C (no room model yet)<extra></extra>`
+                                : `${name}, forecast: %{y:.1f} °C` + (rms != null ? ` (±${rms.toFixed(1)} K over the last day)` : "") +
+                                  "<extra></extra>" }];
 }
 
 // Heat pump: kWh since midnight, back to 0 at 00:00. A gap at each midnight keeps the line from

@@ -69,7 +69,7 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 | Table | Rows | Columns and notes |
 |---|---|---|
 | `p1` | every 10 s | `power_w`, `power_l1_w`, `power_l2_w`, `power_l3_w`, `energy_import_kwh`, `energy_export_kwh`, `average_power_15m_w`, `gas_m3`, `gas_ts`, `meter_ts`. Three-phase house; the heat pump is on L1. |
-| `zones` | every 10 min, since 20 Nov 2026 ~22:00 local | `zone`, `temp_c`, `setpoint_c`, `zone_mode`, `system_mode`. Zones: Badkamer, Bedroom, Logeer (downstairs), Living Room (upstairs). |
+| `zones` | every 10 min, since 20 Nov 2026 ~22:00 local | `zone`, `temp_c`, `setpoint_c`, `zone_mode`, `system_mode`, `temp_fine_c` (0.01 °C from the v1 API, since 28 Nov 2026; NULL when v1 failed). Zones: Badkamer, Bedroom, Logeer (downstairs), Living Room (upstairs). |
 | `schedule` | when a zone's schedule changes (read every 6 h) | One row per switchpoint: `fetched_utc` (when read), `zone`, `day` (0 = Monday), `start` (local "HH:MM"), `setpoint_c`. The newest `fetched_utc` per zone is the schedule in force; older ones are its history. |
 | `room` | 1/min | technical room (basement): `temp_c`, `rh`, `n` reads |
 | `loudness` | 1/min | technical room: `mean`, `p95`, `max` in raw 12-bit units (0-4095), `n` samples |
@@ -96,8 +96,8 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
   `recent.py` do not). The heat pump only heats the underfloor-heating buffer tank.
 - **Outdoor temperature:** use `street_consensus.temp_c`. The Vaillant's own outdoor sensor reads
   about 1 K warm (sun, window frame). de-1093 and de-4064 sit against warm walls: stored, left out.
-- **Zone temperatures** come in 0.5 °C steps (TCC cloud API rounding): use means over an hour or
-  longer. The v1 API gives 0.01 °C, not wired in yet.
+- **Zone temperatures:** `temp_c` comes in 0.5 °C steps (the v2 API rounds): use means over an hour
+  or longer, or `coalesce(temp_fine_c, temp_c)` (0.01 °C from the v1 API, since 28 Nov 2026).
 - **Room and loudness data from before the Pi moved** to the technical room were measured
   elsewhere. They were moved to `archive.sqlite`, if Kevin ran that step: check. `room` data
   between the move and the note "Room sensor lifted off modem vents" is modem exhaust (28-30 °C).
