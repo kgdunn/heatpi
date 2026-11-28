@@ -93,6 +93,13 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   forecast sun, with W/K fitted so the last 3 whole days close at 100 % (Kevin's lumped
   parameter); electricity = heat / COP + L1's other loads. No storage term, constant COP: read
   it over hours, and expect the morning after a frosty night to need more than it says.
+- **The fitted W/K** (28 Nov): 277 W/K from one whole day, the frostiest yet, at COP 2.85. Long-run
+  cross-check: the Vaillant's 2026 counters (3598 kWh electricity + 3411 kWh yield = 7009 kWh of
+  heat to 22 Nov) over KNMI Rotterdam's kelvin-hours below 16 °C outdoors (inside 19-19.5 °C:
+  52-54 kK·h) give 130-140 W/K from the heat pump alone, 170-180 W/K with 0.45 kW of gains, a bit
+  more with sun. `house.py` accounts for about 160 W/K that follows the outdoor temperature. So
+  expect the fitted value to settle near 180-220 W/K; a high day mostly means a lower COP in frost
+  (not yet modelled) and heat going into storage.
 - **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
   24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
   view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.
