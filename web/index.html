@@ -26,6 +26,7 @@
   #legend .group { display: inline-flex; align-items: center; gap: 0 8px; margin-left: 8px; }  /* wraps as one */
   #legend .group > span { color: #6b6a66; }
   #version { font-size: 11px; line-height: 1.3; color: #6b6a66; text-align: right; }
+  #version b { color: #b3261e; }
   @media (max-width: 760px) {      /* phone: the code version top right, the time range on its own line */
     header { column-gap: 8px; }
     h1 { font-size: 15px; }
@@ -274,6 +275,10 @@ function showVersion(v) {
   el.innerHTML = `Code update<br>${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })} ` +
                  `${two(d.getUTCHours())}:${two(d.getUTCMinutes())} UTC`;
   el.title = `${v.commit}: ${v.subject}`;
+  if (v.stale?.length) {      // the page is new, the server not: some data can fail until it restarts
+    el.innerHTML += "<br><b>Server needs a restart</b>";
+    el.title += `\nThe server still runs older ${v.stale.join(", ")}. On the Pi: sudo systemctl restart dashboard`;
+  }
 }
 
 function render() {

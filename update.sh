@@ -20,10 +20,12 @@ for file in $changed; do
   service=${SERVICE[$file]}
   if [ -n "$service" ] && [ -z "${seen[$service]}" ]; then
     seen[$service]=1
-    if systemctl is-active --quiet "$service"; then
-      sudo systemctl restart "$service" && echo "restarted $service"
-    else
+    if ! systemctl is-active --quiet "$service"; then
       echo "$service is not running, so not restarted: start it with  sudo systemctl start $service"
+    elif sudo systemctl restart "$service"; then
+      echo "restarted $service"
+    else                                         # e.g. the sudo password was not given: say so, loudly
+      echo "!! $service was NOT restarted: run  sudo systemctl restart $service"
     fi
   fi
   if [[ $file == *.service ]]; then

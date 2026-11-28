@@ -98,13 +98,30 @@ COMPUTED = {"energy": energy, "balance": lambda hours: balance.daily(DB, hours),
             "forecast": lambda hours: {**balance.forecast(DB), "rooms": rooms.forecast(DB)}}  # the coming 48 h
 
 
+PYTHON = ("dashboard.py", "balance.py", "house.py", "rooms.py")   # the server's own code: a change needs a restart
+
+
+def git(*args):
+    return subprocess.run(["git", "-C", str(HERE), *args], capture_output=True, text=True, timeout=5,
+                          check=True).stdout
+
+
+try:
+    STARTED = git("rev-parse", "HEAD").strip()        # the commit this server process started on
+except (OSError, subprocess.SubprocessError):
+    STARTED = None
+
+
 def version():
-    """The code the Pi runs: its git commit's short hash, time (Unix seconds) and message.
-    Asked on every call, so it is right straight after update.sh, even without a restart."""
+    """The checkout's git commit: short hash, time (Unix seconds) and message, asked on every call, so
+    it is right straight after update.sh. `stale` lists the server's own files changed since it
+    started: the web pages are new, but the server still runs older code until it is restarted."""
     try:
-        out = subprocess.run(["git", "-C", str(HERE), "log", "-1", "--format=%h%n%ct%n%s"],
-                             capture_output=True, text=True, timeout=5, check=True).stdout.split("\n")
-        return {"commit": out[0], "time": int(out[1]), "subject": out[2]}
+        out = git("log", "-1", "--format=%h%n%ct%n%s").split("\n")
+        info = {"commit": out[0], "time": int(out[1]), "subject": out[2]}
+        if STARTED:
+            info["stale"] = git("diff", "--name-only", STARTED, "HEAD", "--", *PYTHON).split()
+        return info
     except (OSError, subprocess.SubprocessError, ValueError, IndexError):  # no git, or not a checkout
         return {}
 
