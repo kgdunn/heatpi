@@ -160,11 +160,15 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   and it hardly cools when its setpoint is low. Its change, about 0.1 K/h, is below the 0.5 °C
   steps: hence the v1 readout (`temp_fine_c`, from 28 Nov). Until a fit holds, a room is held at
   its last reading.
-  The hatch of the technical room (about 21 °C, kept warm by the tanks and pipes) is in the
-  bedroom wall, with open gaps: a likely reason the bedroom holds 18 °C whatever its setpoint.
-  Test: leave the hatch wide open for a day, then shut, each noted with `note.py`, and compare the
-  bedroom with the technical room (`room.temp_c`). Opening it, not sealing it, keeps the damp
-  technical room ventilated. The room model then needs the technical room as a second neighbour.
+  What keeps the bedroom at 18 °C with its own heating off? It loses roughly 0.4-0.6 kW then (about
+  50 W/K: the basement NW wall alone is 31.5 W/K, plus floor, windows and air). The technical room
+  (about 21 °C) cannot supply that through a shut hatch: 3.8 m² of wall at 3 K is about 20 W, the
+  hatch's gaps a few W. With the hatch wide open, air exchange could carry about 0.2 kW. The more
+  likely source is the living room's floor heating above: its pipes sit in the floor over the
+  bedroom, and whatever goes down through 33 m² of ceiling heats the bedroom. Tests: (1) the hatch
+  wide open for a day, then shut, each noted with `note.py`, against the bedroom and `room.temp_c`;
+  (2) with the 0.1 °C readings, does the bedroom warm a few hours after the living room heats?
+  The room model then needs the living room (and the technical room) as neighbours.
 - **v1 readout** (28 Nov): v1 gives 0.1 °C, not the 0.01 °C expected; still 5x finer than v2.
   First reading: Bedroom v2 18.5 / v1 18.1, Logeer 17.0 / 17.4, Badkamer 18.0 / 17.7, Living
   Room 18.0 / 17.7. All four differ by 0.3-0.4 K, more than rounding to 0.5 °C allows (0.25 K),
@@ -415,13 +419,13 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    every curve change (last: 22 Nov, 385 and 563 kWh).
 4. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
    and the living-room ceiling (the home above), the SE wall in the basement (4 spots, like the NW
-   one), and a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?).
+   one), the technical room's front and party walls (to replace their guessed U in `house.py`),
+   and a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?).
    Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
 5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
-6. The technical room's size (width x depth, roughly), to split its bare walls out of the
-   basement's front and SE walls in `house.py`. (Its walls and the hatch in the bedroom wall:
-   28 Nov.)
+6. Is there insulation between the living level's floor-heating pipes and the bedroom ceiling
+   below them? (The technical room is 2.10 x 1.80 m: split out in `house.py`, 28 Nov.)
 7. Does the myVAILLANT app show the heat pump (an internet gateway, sensoNET or VR 921)? Then its
    daily electricity and environmental yield can be read by a script, instead of the counters by
    hand (question 3), and the eBUS adapter may not be needed for them.

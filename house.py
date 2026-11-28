@@ -60,7 +60,12 @@ PARTS = [
     part("Front and back walls, living level", "walls", "living", "outdoors", "est",
          "about 100 mm PIR between studs (front: doc)", area=20.7, u=0.28),
     part("Front and back walls, basement", "walls", "basement", "outdoors", "doc",
-         "80-100 mm PIR between studs; the lowest 0.7 m at the front is below the street", area=15.2, u=0.28),
+         "80-100 mm PIR between studs; the lowest 0.7 m at the front is below the street; without the "
+         "technical room's 4.4 m2", area=10.8, u=0.28),
+    # The technical room: the street-side corner of the SE side, 2.10 m (hatch to party wall) x 1.80 m
+    # (front to Badkamer), 2.1 m high. Bare or partly insulated: Us guessed until an infrared reading.
+    part("Front wall, technical room", "walls", "basement", "outdoors", "est",
+         "2.10 x 2.1 m of the front: plywood over masonry, partly insulated", area=4.4, u=1.2),
     part("Ventilation unit", "ventilation", "house", "outdoors", "est",
          "150 m3/h at 85 % heat recovery, both assumed", wk=7.7),
     part("Ventilation ducts, cold cupboard", "ventilation", "house", "outdoors", "est",
@@ -80,7 +85,9 @@ PARTS = [
     part("SE side wall, living level", "neighbours", "living", "neighbour SE", "est",
          "plaster on 10 cm brick, bare", area=30.0, u=2.4),
     part("SE side wall, basement", "neighbours", "basement", "neighbour SE", "doc",
-         "80-100 mm PIR between studs", area=21.0, u=0.28),
+         "80-100 mm PIR between studs; without the technical room's 3.8 m2", area=17.2, u=0.28),
+    part("SE side wall, technical room", "neighbours", "basement", "neighbour SE", "est",
+         "1.80 x 2.1 m of bare old masonry", area=3.8, u=2.0),
     part("Ceiling, living room part", "neighbours", "living", "home above", "doc",
          "120 mm glass wool between the joists", area=44.0, u=0.37),
     part("Ceiling, kitchen part", "neighbours", "living", "home above", "est",
