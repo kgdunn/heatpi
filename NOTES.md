@@ -47,6 +47,14 @@ every settings change are in the `events` table (`python3 note.py` lists them).
 - **Technical room** is about 21 °C, with humidity rising from 58% to 68%. The dew point is about
   15 °C, so walls colder than about 18 °C sit above 80% humidity at the surface, a mould risk.
   Kevin wants to watch this over time.
+- **Technical room, photos of 28 Nov:** reached through a low arched hatch (two thin doors with open
+  gaps, no seal) from a room with an oak floor. Inside: bare old masonry with damp marks and flaking
+  plaster, a boarded ceiling (plywood and insulation boards), loose boards on a rough floor. It holds
+  the buffer tank, the hot-water vat, the hydraulic station, the floor-heating manifold and pump.
+  Partly insulated, less than the rest of the house. The tanks' and pipes' standing losses keep it
+  near 21 °C; through the hatch's gaps part of that reaches the room in front, the rest leaves
+  through the bare walls. Insulating damp masonry from inside needs a capillary-active board
+  (calcium silicate, lime-based), not foil-faced PIR: PIR would put the dew point in the wall.
 - **Badkamer overshoot on 21 Nov at ~09:30** (19 → 20.5 °C in about 30 minutes) was a shower, not
   the floor: floor heating warms a room at about 0.5 K per hour.
 
@@ -122,6 +130,8 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   With curve 1.00 and scale 0.84 the COP runs from about 3.7 at +8 °C to 2.4 at +2 °C and 1.96
   at −4 °C. On the frosty 27 Nov that brings the fitted W/K from 277 down to roughly 200.
   `python3 balance.py --cop` prints the periods and the curve.
+  Check on 28 Nov 11:18: the controller showed a flow of 43.0 °C at −0.5 °C (its own outdoor
+  sensor); the model gives 43.2 °C.
 - **Long-run W/K** (`signature.py`, 28 Nov): every whole day on the Pi, in Siviour's form (as for
   co-heating tests): heating / ΔT = W/K − weight x sun / ΔT, where heating is the heat pump (COP
   model) plus gains and sun is house.py's window holes on KNMI's sunshine. Intercept = W/K, slope =
@@ -395,22 +405,27 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
 5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
-6. Does the bedroom share a wall or door with the technical room (buffer tank, hot-water vat)? It
-   stays near 18.2 °C whatever its setpoint. And is the technical room inside the insulation?
-7. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
+6. Which room is the technical room's hatch in, and does the bedroom share a wall with the
+   technical room? The bedroom stays near 18.2 °C whatever its setpoint. The technical room's floor
+   area, and which of its walls face outdoors, the ground or a neighbour? (It is partly insulated:
+   photos 28 Nov.)
+7. Does the myVAILLANT app show the heat pump (an internet gateway, sensoNET or VR 921)? Then its
+   daily electricity and environmental yield can be read by a script, instead of the counters by
+   hand (question 3), and the eBUS adapter may not be needed for them.
+8. Which phase are the dishwasher and the washing machine on? Log the start of a run and look at
    the steps per phase 25 minutes later. (Oven, combi-oven, hob and Quooker are not on L1.)
-8. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
+9. Ventilation unit: its model, its flow setting in m3/h, the length of bare duct in the cold
    cupboard.
-9. Heat pump (the plate says VWL 105, 10 kW): the buffer's litres, and whether a return
+10. Heat pump (the plate says VWL 105, 10 kW): the buffer's litres, and whether a return
    temperature and a flow rate can be read anywhere (the flow temperature can).
-10. The back windows and doors of the basement: glass type and sizes.
-11. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
+11. The back windows and doors of the basement: glass type and sizes.
+12. What stands against the NW wall on the living level (fitted cupboards, kitchen units, a
     chimney breast)? It covers part of the 30 m².
-12. In winter, from when to when does direct sun reach the back windows?
-13. Hot-water heater: the litres on its plate.
-14. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
+13. In winter, from when to when does direct sun reach the back windows?
+14. Hot-water heater: the litres on its plate.
+15. Small: what is the "pump" on group 3, and which appliance on L1 runs at about 1.1 kW for 4
     minutes at meal times?
-15. Decisions: the eBUS adapter, the probes (the home above's air probe may no longer be needed
+16. Decisions: the eBUS adapter, the probes (the home above's air probe may no longer be needed
     with the tado), and a cable route from the technical room to the living level.
 
 **KNMI hourly API:** in `start=YYYYMMDDHH&end=YYYYMMDDHH` the hour is a range within each day, not
