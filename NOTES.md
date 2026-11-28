@@ -362,12 +362,11 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
 
 **Open questions for Kevin, most useful first** (remove one when it is answered):
 
-1. The home above has a tado thermostat from 28 Nov: it measures the other side of the ceiling
-   (37 W/K), one of the three unknown temperatures in the balance. Which model (tado X with a
-   Bridge X, or V3+ with an Internet Bridge), and does it switch the boiler on/off or over
-   OpenTherm? Do you pay for tado's Auto-Assist (100 API calls a day without it, 20,000 with)?
-   Then `tado_logger.py`. Guest stays now come from the booking calendar (`bnb_calendar.py`,
-   `bookings`), not from notes; the dates stay on the Pi, not in this repo.
+1. The home above has a wired tado Smart Thermostat X with a Bridge X from 28 Nov, no Auto-Assist,
+   probably switching the boiler on/off: `tado_logger.py` logs it every 20 minutes. It measures the
+   other side of the ceiling (37 W/K), one of the three unknown temperatures in the balance. Next:
+   use it in the balance once a few days are logged. Guest stays come from the booking calendar
+   (`bnb_calendar.py`, `bookings`); the dates stay on the Pi, not in this repo.
 2. From 29 Nov: v1 against v2 over a day. If v2 were v1 rounded to 0.5 °C, no gap would pass 0.25 K:
    `python3 -c "import sqlite3; db = sqlite3.connect('file:p1.sqlite?mode=ro', uri=True); [print(*r) for r in db.execute('SELECT zone, count(*), round(avg(temp_c - temp_fine_c), 2), round(min(temp_c - temp_fine_c), 2), round(max(temp_c - temp_fine_c), 2), round(avg(abs(temp_c - temp_fine_c) > 0.25), 2) FROM zones WHERE temp_fine_c IS NOT NULL GROUP BY 1')]"`
    (zone, readings, mean v2 − v1, min, max, share beyond 0.25 K).
