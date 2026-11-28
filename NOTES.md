@@ -86,6 +86,11 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   same way. On clear nights the airfield reads about 2 K colder than the street sensors.
 - **Range selector and Refresh:** the status says "Loading" at once and the plots dim until the
   new data is drawn; the Pi needs a few seconds for several days.
+- **History behind the window** (28 Nov): each view loads twice its span before it (2 days for
+  24 h, at most a week), so dragging the time axis back shows earlier days. A dragged or zoomed
+  view stays through the 5-minute refresh; Refresh or a new range returns to the newest data.
+  Plotly quirk: a range on the shared time axis switches off the y autorange of the panel anchored
+  to it, so every y axis states `autorange: true` (or false, with its own range).
 - **Heat pump L1:** kWh since midnight, back to 0 at 00:00, with each day's total labelled. Tapping
   the title switches to kW. In the 24 h view a pink line shows the same clock time a day earlier.
 - **Technical room:** smoothed temperature (σ = 0.5 h) on the left axis, smoothed noise shaded on
@@ -212,6 +217,10 @@ rain) and the page `/balance.html`.
   from 40 to 37 °C at about 8 °C outdoors. A cold week follows (nights to −2 °C): below about 1 °C
   outdoors both curves reach the 45 °C maximum, so the week tests whether 45 °C is enough in frost.
   Next: read the counters after about a week; go down by 0.2 again if every room held its setpoint.
+- 27 Nov, −4 °C at dawn: the living room was at 17.0 °C at 06:30 and reached only 18.5 °C by noon
+  against 19 °C. Its setpoint before 07:30 was below the chart (15 °C or lower), so it cooled for
+  hours first; at −4 °C both curves ask for more than the 45 °C maximum, so the limit is the
+  maximum and the parquet, not curve 1.00. A shallower early-morning setpoint helps more than a curve.
 - Installation flow temperature 43 °C at 4.5 °C outdoors (24 h average). The curve of 1.20 asks for
   about 45 °C there, which is also the set maximum. Warm for floor heating: the installer guide's
   table gives about 3 % better COP for every kelvin less.
@@ -275,7 +284,8 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    and the living-room ceiling (the home above), and the NW wall in the basement (insulated: it
    should read near room temperature). The side walls of the living level are done.
 2. The home above: is it heated this week, what does it fall to when empty, and on which days do
-   guests come and go?
+   guests come and go? And its boiler and thermostat: brand, model, OpenTherm or plain on/off
+   (decides between a tado X over Matter and an OpenTherm Gateway; Kevin to check, 28 Nov).
 3. Does the living room hold its day setpoint on the cold mornings of this week (curve 1.00,
    45 °C maximum)? At night it held 18 °C at −1 °C outdoors (23 Nov). evohome has night set-backs.
 4. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
