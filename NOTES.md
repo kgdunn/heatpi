@@ -391,6 +391,8 @@ about 0 °C. A solid wooden frame (U about 2) would read about 13 °C there, so 
 the frame or the joint between frame and wall. At 8 °C the wood sits at the dew point of 18 °C air
 at 50-55 % humidity: condensation and the black spots on the foam. Check after: the same spot
 should read warmer once the draught stops; the `events` note marks the change for the balance.
+Before, on the window's frame at the sides: left 12 °C, right 14 °C (the 8 °C was deeper in the
+reveal). After: the same three spots, at the same time of day, with no sun on them.
 
 **Infrared, NW wall in the basement (28 Nov, late morning, same thermometer):** 16 °C on average at
 4 spots, room 18 °C. The documents give 80-100 mm PIR between studs (U 0.28): then the wall would
