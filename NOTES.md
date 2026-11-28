@@ -244,6 +244,10 @@ rain) and the page `/balance.html`.
 - The heat pump seems to draw about 3 kW at times (L1 fell from 3.65 to 0.67 kW within a minute).
   The 4 and 6 kW units stop at 2.3 kW, so it is probably the 8 or 10 kW unit. Confirmed on 28 Nov:
   the 10 kW VWL 105.
+- **The home above** (28 Nov): its tado read 13 °C in the morning, before guests arrived. Through
+  the ceiling (37 W/K) that takes about 0.24 kW from us at 19.5 °C inside: a third of the 0.7 kW
+  left over. Heated for guests to about 20 °C it takes nothing. A natural experiment: the
+  left-over should drop by about 0.2 kW on occupied days (`bookings`), small against the daily noise.
 - **Sizing** (28 Nov): the house needs about 180-200 W/K x ΔT (inside 19.5 °C), less about 0.5 kW
   of gains: 2.2-2.5 kW at +7 °C, 4.2-4.7 kW at −4 °C and 4.8-5.3 kW at −7 °C. The VWL 105 gives 9.85 kW at A7/W35 and 7.12 kW at A−7/W35, so it is
   about twice the size the house needs, and in mild weather it can only meet 2 kW by starting and
@@ -361,8 +365,9 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
 1. The home above has a tado thermostat from 28 Nov: it measures the other side of the ceiling
    (37 W/K), one of the three unknown temperatures in the balance. Which model (tado X with a
    Bridge X, or V3+ with an Internet Bridge), and does it switch the boiler on/off or over
-   OpenTherm? Then `tado_logger.py`. Log each guest arrival and departure with `note.py`
-   ("home above: guests arrive" / "... leave"); the dates stay on the Pi, not in this repo.
+   OpenTherm? Do you pay for tado's Auto-Assist (100 API calls a day without it, 20,000 with)?
+   Then `tado_logger.py`. Guest stays now come from the booking calendar (`bnb_calendar.py`,
+   `bookings`), not from notes; the dates stay on the Pi, not in this repo.
 2. From 29 Nov: v1 against v2 over a day. If v2 were v1 rounded to 0.5 °C, no gap would pass 0.25 K:
    `python3 -c "import sqlite3; db = sqlite3.connect('file:p1.sqlite?mode=ro', uri=True); [print(*r) for r in db.execute('SELECT zone, count(*), round(avg(temp_c - temp_fine_c), 2), round(min(temp_c - temp_fine_c), 2), round(max(temp_c - temp_fine_c), 2), round(avg(abs(temp_c - temp_fine_c) > 0.25), 2) FROM zones WHERE temp_fine_c IS NOT NULL GROUP BY 1')]"`
    (zone, readings, mean v2 − v1, min, max, share beyond 0.25 K).
