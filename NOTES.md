@@ -390,6 +390,12 @@ read within about 0.3 K of the room.
   So the 11 °C of `GROUND_C` is too warm for this shallow soil; it underestimates that part's loss
   by about 0.05 kW. To split air from wall: the same two readings on an inner wall of the bedroom
   (nothing cold behind it) give the air's share alone.
+- **Living-room ceiling, back (glass-wool part), 28 Nov late morning:** 17.8 °C, with the home above
+  at 13 °C (tado, holiday mode). Through 120 mm glass wool (U 0.37) the ceiling should sit about
+  0.2 K under the air next to it (5 K x 0.37 W/m²K / 10 W/m²K at a ceiling); uninsulated (U 1.3)
+  about 0.7 K. With the room near 18 °C it fits the insulated case, but the gap is near the
+  thermometer's error, and the air under a ceiling is warmer than at the thermostat. A reference
+  makes it decisive: the top of an inner wall, next to the ceiling, at the same moment.
 - To tell missing insulation from bridging: a line of readings every 15 cm across 1.2 m at
   shoulder height. Cold stripes about 60 cm apart are studs (insulation there, but bridged); an
   even 2 K under the room is no insulation.
@@ -424,8 +430,9 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    (zone, readings, mean v2 − v1, min, max, share beyond 0.25 K).
 3. Overdue: both Vaillant counters (`python3 note.py --counters`), about once a week and before
    every curve change (last: 22 Nov, 385 and 563 kWh).
-4. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
-   and the living-room ceiling (the home above), the SE wall in the basement (4 spots, like the NW
+4. Surface temperatures with the same infrared thermometer, on a cold morning, best while the home
+   above is cold: the kitchen ceiling, with the top of an inner wall as reference (the living-room
+   ceiling read 17.8 °C on 28 Nov), the SE wall in the basement (4 spots, like the NW
    one), the technical room's front and party walls (to replace their guessed U in `house.py`),
    a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?), and the
    top and bottom of an inner wall of the bedroom (the room air's own top-to-bottom difference).
