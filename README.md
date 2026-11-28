@@ -18,6 +18,7 @@ Background, findings and open items: [NOTES.md](NOTES.md). Working notes for Cla
 | `hp_check.py` | Heat pump runs, starts and kWh per day, with an hourly map | by hand | – |
 | `steps.py` | Sudden jumps in power per phase, and matching pairs as appliance runs: which appliance is on which phase | by hand | – |
 | `recent.py` | Last hours in steps: power, heat-pump share, room climate, loudness | by hand | – |
+| `frost_rule.py` | On a frosty night, lifts the living room's low setpoint slot to 18 °C with a temporary evohome override that ends with the slot; notes each change in `events` | cron, every 15 min (`.venv`) | `events` |
 | `note.py` | Log a settings change (`python3 note.py "..."`), or list them | by hand | `events` |
 | `deviation.py` | Room minus setpoint per zone: summary and over time | by hand | – |
 | `leadtime.py` | Warm-up lead time per setpoint step-up, with outdoor temperature and heat-pump power | by hand | – |
@@ -112,6 +113,23 @@ COP between two readings instead of its default:
 
 ```bash
 python3 note.py "counters: heating=253 yield=319"
+```
+
+### Frost rule: the first one that writes to evohome
+
+On a night with frost in the forecast, a setpoint slot below 18 °C in the living room is lifted to
+18 °C until the slot ends, so the room is not too cold to recover by morning. It only ever raises a
+setpoint, only with an override that ends by itself, and leaves the zone alone after any manual
+change or in away mode. Try it first; it writes nothing:
+
+```bash
+cd ~/p1-logger && .venv/bin/python frost_rule.py --dry-run
+```
+
+Then switch it on, every 15 minutes (remove the line again to switch it off):
+
+```bash
+(crontab -l; echo '*/15 * * * * cd ~/p1-logger && .venv/bin/python frost_rule.py >> frost.log 2>&1') | crontab -
 ```
 
 ## Updating
