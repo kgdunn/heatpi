@@ -383,6 +383,13 @@ read within about 0.3 K of the room.
   soil at `GROUND_C` (11 °C). shortcut: soil this shallow is colder in winter than deep ground;
   `knmi_live.soil_c` (1 m deep) could replace it. Splitting the 2 K the same way gives U 1.5-1.7, so
   U 1.5 stays. The SE neighbour's house mirrors ours: its basement is at our level.
+- Top against bottom (Kevin, 28 Nov): the wall reads about 1 K warmer at the top than at the
+  bottom. Part of that is the room's air, warmer under the ceiling. The rest says the soil behind
+  the lower part is no warmer than the NW house behind the upper part: with U 1.5 and the room's
+  air at 18 °C throughout, 15.5 and 16.5 °C at the surface mean about 5 and 10 °C behind the wall.
+  So the 11 °C of `GROUND_C` is too warm for this shallow soil; it underestimates that part's loss
+  by about 0.05 kW. To split air from wall: the same two readings on an inner wall of the bedroom
+  (nothing cold behind it) give the air's share alone.
 - To tell missing insulation from bridging: a line of readings every 15 cm across 1.2 m at
   shoulder height. Cold stripes about 60 cm apart are studs (insulation there, but bridged); an
   even 2 K under the room is no insulation.
@@ -420,7 +427,8 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
 4. Surface temperatures with the same infrared thermometer, on a cold morning: the kitchen ceiling
    and the living-room ceiling (the home above), the SE wall in the basement (4 spots, like the NW
    one), the technical room's front and party walls (to replace their guessed U in `house.py`),
-   and a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?).
+   a line across the basement NW wall every 15 cm for 1.2 m (studs or no insulation?), and the
+   top and bottom of an inner wall of the bedroom (the room air's own top-to-bottom difference).
    Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
 5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
