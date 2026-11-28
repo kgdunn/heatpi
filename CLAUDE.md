@@ -110,7 +110,8 @@ all-in-one health check. `dblocks.py` shows who holds the database's write lock.
 ## Code conventions
 
 - Loggers use only the standard library (system `python3` on Raspberry Pi OS). Analysis scripts may
-  use pandas (`python3-pandas` from apt). Keep scripts short and readable, with a docstring and
+  use pandas (`python3-pandas` from apt). `signature.py` uses process-improve from `~/analysis-venv`, kept
+  apart from `.venv` so the loggers' and the frost rule's packages never change under them. Keep scripts short and readable, with a docstring and
   `--help`.
 - SQLite: connect with `timeout=30`, keep write transactions short (`with db:`), and read through
   `mode=ro` URIs.
