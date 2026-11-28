@@ -160,6 +160,11 @@ every settings change are in the `events` table (`python3 note.py` lists them).
   and it hardly cools when its setpoint is low. Its change, about 0.1 K/h, is below the 0.5 °C
   steps: hence the v1 readout (`temp_fine_c`, from 28 Nov). Until a fit holds, a room is held at
   its last reading.
+  The hatch of the technical room (about 21 °C, kept warm by the tanks and pipes) is in the
+  bedroom wall, with open gaps: a likely reason the bedroom holds 18 °C whatever its setpoint.
+  Test: leave the hatch wide open for a day, then shut, each noted with `note.py`, and compare the
+  bedroom with the technical room (`room.temp_c`). Opening it, not sealing it, keeps the damp
+  technical room ventilated. The room model then needs the technical room as a second neighbour.
 - **v1 readout** (28 Nov): v1 gives 0.1 °C, not the 0.01 °C expected; still 5x finer than v2.
   First reading: Bedroom v2 18.5 / v1 18.1, Logeer 17.0 / 17.4, Badkamer 18.0 / 17.7, Living
   Room 18.0 / 17.7. All four differ by 0.3-0.4 K, more than rounding to 0.5 °C allows (0.25 K),
@@ -211,6 +216,10 @@ rain) and the page `/balance.html`.
 
 - Two levels of 6 × 10 m. Basement, 2.1 m high: the Bedroom zone runs along the whole NW side;
   Logeer, Badkamer and the technical room are on the SE side. Living level, 3.0 m high.
+- The technical room (basement) is the street-side corner of the SE side. Its walls: the front
+  facade (NE, street side, plywood over masonry, the manifold on it), the SE party wall (bare
+  masonry), the Badkamer (towards the back) and the Bedroom, which has the hatch. Kevin calls
+  the SE side "SW".
 - The front faces NE (about 45°), the back SW (about 225°). From November to January only the back
   gets direct sun. The back also faces the prevailing wind and rain.
 - A row house: both side walls are shared, and another home sits on top (own meters, heated only
@@ -410,10 +419,9 @@ outdoors. Use this decay for the building's thermal mass in the hourly model.
    Note the room temperature each time. The basement NW wall is done (28 Nov: 16 °C, room 18 °C).
 5. Ventilation: the air temperature in one supply vent on a cold day, with the room and outdoor
    temperature at that moment.
-6. Which room is the technical room's hatch in, and does the bedroom share a wall with the
-   technical room? The bedroom stays near 18.2 °C whatever its setpoint. The technical room's floor
-   area, and which of its walls face outdoors, the ground or a neighbour? (It is partly insulated:
-   photos 28 Nov.)
+6. The technical room's size (width x depth, roughly), to split its bare walls out of the
+   basement's front and SE walls in `house.py`. (Its walls and the hatch in the bedroom wall:
+   28 Nov.)
 7. Does the myVAILLANT app show the heat pump (an internet gateway, sensoNET or VR 921)? Then its
    daily electricity and environmental yield can be read by a script, instead of the counters by
    hand (question 3), and the eBUS adapter may not be needed for them.
